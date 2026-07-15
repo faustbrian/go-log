@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
+
+permissions:
+  contents: write
+
+env:
+  GOFLAGS: -mod=readonly
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+      - name: Verify annotated tag
+        run: test "$(git cat-file -t "$GITHUB_REF_NAME")" = tag
+      - name: Verify changelog section
+        run: ./scripts/release-notes.sh "$GITHUB_REF_NAME" > release-notes.md
+      - run: ./scripts/check-format.sh
+      - run: go vet ./...
+      - run: ./scripts/check-coverage.sh
+      - run: go test -race ./...
+      - run: ./scripts/check-api.sh
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Build reproducible archives
+        run: |
+          ./scripts/build-release.sh "$GITHUB_REF_NAME"
+          cp "dist/go-log-${GITHUB_REF_NAME}.tar.gz" /tmp/first.tar.gz
+          rm -rf dist
+          ./scripts/build-release.sh "$GITHUB_REF_NAME"
+          cmp /tmp/first.tar.gz "dist/go-log-${GITHUB_REF_NAME}.tar.gz"
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          dist/*
+          --verify-tag
+          --title "$GITHUB_REF_NAME"
+          --notes-file release-notes.md
