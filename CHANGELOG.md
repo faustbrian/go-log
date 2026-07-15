@@ -21,7 +21,8 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Concurrent capture handler, record snapshots, reset, and test assertions.
 - Permission-enforced local file rotation with bounded numbered backups.
 - Optional OpenTelemetry trace, span, and trace-flags correlation bridge.
-- Race, failure-injection, fuzz, allocation-budget, and benchmark coverage.
+- Race, failure-injection, fuzz, allocation-budget, latency-budget, and
+  benchmark coverage.
 
 ### Fixed
 

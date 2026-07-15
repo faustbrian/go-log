@@ -119,5 +119,9 @@ This direction prevents dependency cycles: `go-telemetry` does not need
 
 Benchmarks report latency and allocations for standard JSON, redaction, stack,
 sampling, and async pipelines. `TestAllocationBudgets` enforces allocation
-ceilings for synchronous decorators. Benchmark output is retained in release
-notes when performance changes materially.
+ceilings for synchronous decorators. `TestLatencyBudgets` enforces deliberately
+conservative latency ceilings from 5 to 20 microseconds per operation. These
+ceilings catch order-of-magnitude regressions without treating shared-runner
+noise as a release failure. The wall-clock gate is excluded under race-detector
+instrumentation. Benchmark output remains the source for finer trend analysis
+and is retained in release notes when performance changes materially.
