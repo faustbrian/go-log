@@ -130,6 +130,32 @@ func TestZeroBackupsTruncatesOnRotation(t *testing.T) {
 	if _, err := os.Stat(path + ".1"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("backup Stat() error = %v, want not exist", err)
 	}
+	if got := writer.Stats(); got.Rotations != 1 || got.Bytes != 4 {
+		t.Fatalf("Stats() = %+v, want one rotation and four current bytes", got)
+	}
+}
+
+func TestWriteHonorsExactSizeBoundaryAndTracksBytes(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "app.log")
+	writer := mustNewWriter(t, Options{Path: path, MaxBytes: 5, Backups: 1, Mode: 0o600})
+	if _, err := writer.Write([]byte("12")); err != nil {
+		t.Fatal(err)
+	}
+	if got := writer.Stats(); got.Bytes != 2 || got.Rotations != 0 {
+		t.Fatalf("Stats() after first write = %+v, want two bytes and no rotations", got)
+	}
+	if _, err := writer.Write([]byte("345")); err != nil {
+		t.Fatal(err)
+	}
+	if got := writer.Stats(); got.Bytes != 5 || got.Rotations != 0 {
+		t.Fatalf("Stats() at exact limit = %+v, want five bytes and no rotations", got)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	assertFile(t, path, "12345")
 }
 
 func TestOversizedWriteRemainsAtomicAndRotatesBeforeNextWrite(t *testing.T) {
@@ -149,6 +175,43 @@ func TestOversizedWriteRemainsAtomicAndRotatesBeforeNextWrite(t *testing.T) {
 
 	assertFile(t, path, "x")
 	assertFile(t, path+".1", "oversized")
+	if got := writer.Stats(); got.Rotations != 1 || got.Bytes != 1 {
+		t.Fatalf("Stats() = %+v, want one rotation after the oversized record", got)
+	}
+}
+
+func TestRotationDoesNotProbeBackupsOutsideRetentionWindow(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.log")
+	writer := mustNewWriter(t, Options{Path: path, MaxBytes: 3, Backups: 3, Mode: 0o600})
+	if _, err := writer.Write([]byte("old")); err != nil {
+		t.Fatal(err)
+	}
+
+	previousRename := renameFile
+	renamed := make([]string, 0, 3)
+	renameFile = func(from, to string) error {
+		renamed = append(renamed, from+"->"+to)
+		if len(renamed) > 3 {
+			return errors.New("rename outside configured retention window")
+		}
+		return previousRename(from, to)
+	}
+	defer func() { renameFile = previousRename }()
+
+	if _, err := writer.Write([]byte("new")); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		path + ".2->" + path + ".3",
+		path + ".1->" + path + ".2",
+		path + "->" + path + ".1",
+	}
+	if strings.Join(renamed, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("rotation renames = %q, want %q", renamed, want)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestConcurrentWritesRemainWhole(t *testing.T) {

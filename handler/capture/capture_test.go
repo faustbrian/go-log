@@ -136,6 +136,7 @@ func TestHandlerIgnoresZeroAndEmptyGroupsAndInlinesEmptyKeys(t *testing.T) {
 		slog.Attr{},
 		slog.Group("empty"),
 		slog.Group("", slog.String("inline", "visible"), slog.Group("nested-empty")),
+		slog.String("after-inline", "preserved"),
 	)
 
 	if err := handler.Handle(context.Background(), record); err != nil {
@@ -143,11 +144,14 @@ func TestHandlerIgnoresZeroAndEmptyGroupsAndInlinesEmptyKeys(t *testing.T) {
 	}
 
 	captured, _ := handler.Last()
-	if got := captured.NumAttrs(); got != 1 {
-		t.Fatalf("NumAttrs() = %d, want 1", got)
+	if got := captured.NumAttrs(); got != 2 {
+		t.Fatalf("NumAttrs() = %d, want 2", got)
 	}
 	if got := attrValue(captured, "inline"); got != "visible" {
 		t.Fatalf("inline = %v, want visible", got)
+	}
+	if got := attrValue(captured, "after-inline"); got != "preserved" {
+		t.Fatalf("after-inline = %v, want preserved", got)
 	}
 }
 

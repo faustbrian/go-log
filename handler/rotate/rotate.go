@@ -185,7 +185,8 @@ func (writer *Writer) rotate() error {
 	if err := removeFile(oldest); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return writer.recoverRotation(err)
 	}
-	for index := writer.options.Backups - 1; index >= 1; index-- {
+	for offset := range writer.options.Backups - 1 {
+		index := writer.options.Backups - 1 - offset
 		from := backupName(writer.options.Path, index)
 		to := backupName(writer.options.Path, index+1)
 		if err := renameFile(from, to); err != nil && !errors.Is(err, os.ErrNotExist) {

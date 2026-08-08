@@ -48,6 +48,19 @@ func TestNewRejectsInvalidRoutes(t *testing.T) {
 	}
 }
 
+func TestNewAcceptsSingleLevelRange(t *testing.T) {
+	t.Parallel()
+
+	handler, err := stack.New(stack.Route{
+		Handler:  &recordingHandler{},
+		MinLevel: slog.LevelInfo,
+		MaxLevel: slog.LevelInfo,
+	})
+	if err != nil || handler == nil {
+		t.Fatalf("New(exact range) = %v, %v", handler, err)
+	}
+}
+
 func TestEnabledUsesRouteBoundsAndDownstreamHandler(t *testing.T) {
 	t.Parallel()
 
