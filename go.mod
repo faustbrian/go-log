@@ -1,6 +1,6 @@
 module github.com/faustbrian/golib/pkg/log
 
-go 1.26.5
+go 1.26.6
 
 require go.opentelemetry.io/otel/trace v1.41.0
 
