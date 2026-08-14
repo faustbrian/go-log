@@ -6,6 +6,10 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- Link the package README to the repository-wide Golib documentation portal.
+
 ### Changed
 
 - Execute API compatibility tooling against the isolated module graph so owned
