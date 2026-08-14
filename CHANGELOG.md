@@ -8,6 +8,9 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- Replace obsolete standalone-repository links and workflow claims with
+  monorepo-canonical targets and current release guidance.
+
 - Link the package README to the repository-wide Golib documentation portal.
 
 ### Changed
@@ -52,4 +55,4 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Isolate every redaction rule from nested group storage so a custom rule cannot
   mutate structure and bypass later secret rules.
 
-[Unreleased]: https://github.com/faustbrian/golib/pkg/log/compare/HEAD...HEAD
+[Unreleased]: https://github.com/faustbrian/golib/commits/main/pkg/log
