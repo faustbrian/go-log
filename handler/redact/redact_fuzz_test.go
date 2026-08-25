@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/faustbrian/golib/pkg/log/handler/redact"
+	"github.com/faustbrian/go-log/handler/redact"
 )
 
 func FuzzNestedAttributes(fuzz *testing.F) {

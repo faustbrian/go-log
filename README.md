@@ -1,5 +1,15 @@
 # log
 
+[![CI](https://github.com/faustbrian/go-log/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/faustbrian/go-log/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/badge/CodeQL-required-blue)](https://github.com/faustbrian/go-log/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25_required-blue)](CONTRIBUTING.md#verification)
+[![Mutation](https://img.shields.io/badge/mutation-100%25_required-blue)](CONTRIBUTING.md#verification)
+[![Documentation](https://img.shields.io/badge/docs-checked_in_CI-blue)](docs/)
+[![Go Reference](https://pkg.go.dev/badge/github.com/faustbrian/go-log.svg)](https://pkg.go.dev/github.com/faustbrian/go-log)
+[![Release](https://img.shields.io/github/v/release/faustbrian/go-log?sort=semver)](https://github.com/faustbrian/go-log/releases)
+[![Go](https://img.shields.io/badge/go-1.26.6-00ADD8?logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 `log` is a production-oriented toolkit built on Go's standard `log/slog`
 types. Applications keep accepting and passing `*slog.Logger`; this module adds
 small handlers for composition, redaction, sampling, bounded delivery, test
@@ -17,7 +27,7 @@ drivers.
 ## Install
 
 ```sh
-go get github.com/faustbrian/golib/pkg/log
+go get github.com/faustbrian/go-log
 ```
 
 ## Quick start
@@ -29,7 +39,7 @@ import (
 	"log/slog"
 	"os"
 
-	log "github.com/faustbrian/golib/pkg/log"
+	log "github.com/faustbrian/go-log"
 )
 
 func main() {

@@ -1,88 +1,55 @@
 # Contributing
 
-Thank you for improving `log`. Contributions should preserve standard
-`log/slog` types, explicit failure behavior, and bounded resource use.
+## Before Editing
 
-## Development environment
+1. Read [`AGENTS.md`](AGENTS.md) and the affected module's goals and docs.
+2. Run `make inventory` and the narrow baseline gate for the module.
+3. Identify owned dependencies and reverse dependants in `modules.json`.
+4. Preserve unrelated work and generated/corpus provenance.
 
-- Go 1.24 or newer.
-- Git.
-- Optional CI tools: `golangci-lint`, `govulncheck`, and `apidiff`.
+## Changes
 
-Clone the repository and run:
+Keep commits focused and conventional. Update every affected changelog with
+the behavior and migration impact. Public API changes require compatibility
+evidence and documentation. Specification behavior requires a decision record,
+fixture coverage, and interoperability evidence.
 
-```sh
-go mod download
-go test ./...
-go test -race ./...
-go vet ./...
+New direct dependencies and dependency updates must follow the
+[dependency governance policy](docs/dependency-governance.md). Package-local
+update bots are forbidden; the root policy owns every module and action update.
+
+Specification-backed changes must follow the
+[specification governance contract](docs/specification-governance.md), update
+the affected stable decision entries, and complete the Specification Decisions
+section of the pull request template. An unresolved interpretation or stale
+source pin is release-blocking; peer behavior cannot silently select policy.
+
+Do not add package-local workflows, permanent replacements, machine-specific
+paths, bypass flags, broad mutation exclusions, or aggregate quality metrics
+that hide a failing package.
+
+## Verification
+
+Run during development:
+
+```bash
+make inventory
+make specification-decisions
+make check MODULES=pkg/<library>
 ```
 
-## Design rules
+Before submitting a repository-wide change:
 
-- Do not introduce a logger interface that replaces `*slog.Logger`.
-- Handler decorators must implement the complete `slog.Handler` contract.
-- Any retained records or attrs must be independently cloned.
-- Every queue, retry, cache, and retained collection used in production must
-  have an explicit bound.
-- New vendor behavior belongs in an optional subpackage and should target the
-  OpenTelemetry Collector when possible.
-- OpenTelemetry SDK initialization and shutdown remain outside this module.
-- Public APIs should be small and use standard context-aware types.
-
-Discuss large API changes in an issue before implementation. Include failure,
-concurrency, compatibility, and migration consequences.
-
-## Tests
-
-Use a red-green-refactor cycle for behavior changes. Tests should prove
-observable behavior and failure semantics, not only execute lines.
-
-Every change must preserve meaningful 100% statement coverage:
-
-```sh
-./scripts/check-coverage.sh
+```bash
+make ci-changed BASE=origin/main
 ```
 
-Stateful handlers require race tests. New attribute or redaction behavior must
-add fuzz seeds where applicable. New pipeline overhead must include a benchmark
-and an allocation budget when stable enough to enforce.
+The full scheduled and release gate is `make ci`. Report every unavailable or
+failing command; do not describe partial results as release-ready.
 
-Run fuzz smoke tests locally:
+## Adding A Module
 
-```sh
-go test ./handler/redact -run '^$' \
-  -fuzz '^FuzzNestedAttributes$' -fuzztime=5s
-go test ./handler/redact -run '^$' \
-  -fuzz '^FuzzRedactionRules$' -fuzztime=5s
-```
-
-## Documentation
-
-Every exported symbol needs a complete Go doc comment. User-visible changes
-must update:
-
-- the relevant guide or recipe;
-- runnable examples when adoption changes;
-- `CHANGELOG.md` under `Unreleased`;
-- compatibility or security policy when guarantees change.
-
-## Commits and pull requests
-
-Use focused conventional commits with a body explaining why the change is
-needed and its side effects. Pull requests should include:
-
-- the problem and chosen contract;
-- tests and failure injection performed;
-- race, fuzz, coverage, vet, and lint results;
-- compatibility and operational impact;
-- documentation and changelog updates.
-
-Do not bypass hooks or force-push shared review history. Maintainers may ask for
-new commits rather than amended history.
-
-## Releases
-
-Maintainers create annotated semantic-version tags. Release automation verifies
-the full suite, builds a deterministic source archive, publishes its checksum,
-and uses the matching changelog section as release notes.
+Follow [module lifecycle procedures](docs/module-lifecycle.md). New modules
+require an explicit purpose, ownership boundary, dependency review, package
+catalog entry, full quality gates, documentation, changelog, license, security
+policy, compatibility plan, and release dry-run.

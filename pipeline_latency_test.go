@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/golib/pkg/log/handler/async"
-	"github.com/faustbrian/golib/pkg/log/handler/redact"
-	"github.com/faustbrian/golib/pkg/log/handler/sample"
-	"github.com/faustbrian/golib/pkg/log/handler/stack"
+	"github.com/faustbrian/go-log/handler/async"
+	"github.com/faustbrian/go-log/handler/redact"
+	"github.com/faustbrian/go-log/handler/sample"
+	"github.com/faustbrian/go-log/handler/stack"
 )
 
 func TestLatencyBudgets(t *testing.T) {

@@ -11,7 +11,7 @@ run_apidiff() {
 	fi
 }
 
-module=github.com/faustbrian/golib/pkg/log
+module=github.com/faustbrian/go-log
 baseline=api/log.txt
 current=$(mktemp "${TMPDIR:-/tmp}/log-api.XXXXXX")
 report=$(mktemp "${TMPDIR:-/tmp}/log-api-report.XXXXXX")

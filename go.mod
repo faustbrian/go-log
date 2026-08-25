@@ -1,4 +1,4 @@
-module github.com/faustbrian/golib/pkg/log
+module github.com/faustbrian/go-log
 
 go 1.26.6
 

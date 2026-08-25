@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/golib/pkg/log/handler/async"
-	"github.com/faustbrian/golib/pkg/log/handler/redact"
-	"github.com/faustbrian/golib/pkg/log/handler/sample"
-	"github.com/faustbrian/golib/pkg/log/handler/stack"
-	logotel "github.com/faustbrian/golib/pkg/log/otel"
+	"github.com/faustbrian/go-log/handler/async"
+	"github.com/faustbrian/go-log/handler/redact"
+	"github.com/faustbrian/go-log/handler/sample"
+	"github.com/faustbrian/go-log/handler/stack"
+	logotel "github.com/faustbrian/go-log/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 

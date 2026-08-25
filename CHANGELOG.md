@@ -6,6 +6,8 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-25
+
 ### Documentation
 
 - Replace obsolete standalone-repository links and workflow claims with
@@ -15,6 +17,7 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Publish the module from its standalone `github.com/faustbrian/go-log` identity while preserving its documented API and behavior.
 - Execute API compatibility tooling against the isolated module graph so owned
   dependency source changes cannot conflict with release checksums.
 - Use the repository-pinned current `apidiff` revision for the canonical API
@@ -55,4 +58,5 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Isolate every redaction rule from nested group storage so a custom rule cannot
   mutate structure and bypass later secret rules.
 
-[Unreleased]: https://github.com/faustbrian/golib/commits/main/pkg/log
+[Unreleased]: https://github.com/faustbrian/go-log/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/faustbrian/go-log/releases/tag/v1.0.0

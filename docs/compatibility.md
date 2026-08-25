@@ -5,7 +5,7 @@
 `log` follows Semantic Versioning for exported Go APIs and documented
 behavior.
 
-Before v1.0.0, incompatible public API changes may occur in a minor release and
+Incompatible public API changes require a new major release and
 will be called out under `Changed` in `CHANGELOG.md`. Patch releases remain
 backward-compatible. Starting with v1.0.0, incompatible changes require a major
 version module path.
@@ -71,7 +71,6 @@ release comparison.
 
 ## Deprecation
 
-Deprecated APIs remain available for at least one minor release before v1 and
-for at least one major release after v1, unless retaining them would preserve a
+Deprecated APIs remain available for at least one major release, unless retaining them would preserve a
 security vulnerability. Deprecation comments identify the replacement and the
 changelog records removal timing.

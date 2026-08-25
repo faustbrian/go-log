@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/faustbrian/golib/pkg/log"
+	log "github.com/faustbrian/go-log"
 )
 
 func TestNewRejectsNilHandler(t *testing.T) {

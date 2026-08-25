@@ -2,8 +2,7 @@
 
 ## Supported versions
 
-Until the first stable release, security fixes are applied to the latest minor
-release only. After v1, the latest major release receives fixes; additional
+The latest stable v1 release receives security fixes; additional
 support windows will be documented here when offered.
 
 | Version | Supported |

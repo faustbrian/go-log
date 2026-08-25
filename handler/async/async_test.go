@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/golib/pkg/log/handler/async"
-	"github.com/faustbrian/golib/pkg/log/handler/capture"
+	"github.com/faustbrian/go-log/handler/async"
+	"github.com/faustbrian/go-log/handler/capture"
 )
 
 func TestNewValidatesOptions(t *testing.T) {

@@ -4,7 +4,7 @@ set -eu
 dependencies=$(go list -deps ./otel)
 for forbidden in \
 	go.opentelemetry.io/otel/sdk \
-	github.com/faustbrian/golib/pkg/telemetry
+	github.com/faustbrian/go-telemetry
 do
 	if printf '%s\n' "$dependencies" | grep -Eq "^${forbidden}(/|$)"; then
 		printf 'otel bridge has forbidden dependency: %s\n' "$forbidden" >&2

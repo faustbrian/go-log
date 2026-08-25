@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "repository": "github.com/faustbrian/go-log",
+  "packages": [
+    {
+      "module_directory": ".",
+      "directory": ".",
+      "name": "log",
+      "import_path": "github.com/faustbrian/go-log",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    },
+    {
+      "module_directory": ".",
+      "directory": "handler/async",
+      "name": "async",
+      "import_path": "github.com/faustbrian/go-log/handler/async",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    },
+    {
+      "module_directory": ".",
+      "directory": "handler/capture",
+      "name": "capture",
+      "import_path": "github.com/faustbrian/go-log/handler/capture",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    },
+    {
+      "module_directory": ".",
+      "directory": "handler/redact",
+      "name": "redact",
+      "import_path": "github.com/faustbrian/go-log/handler/redact",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    },
+    {
+      "module_directory": ".",
+      "directory": "handler/rotate",
+      "name": "rotate",
+      "import_path": "github.com/faustbrian/go-log/handler/rotate",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    },
+    {
+      "module_directory": ".",
+      "directory": "handler/sample",
+      "name": "sample",
+      "import_path": "github.com/faustbrian/go-log/handler/sample",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    },
+    {
+      "module_directory": ".",
+      "directory": "handler/stack",
+      "name": "stack",
+      "import_path": "github.com/faustbrian/go-log/handler/stack",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    },
+    {
+      "module_directory": ".",
+      "directory": "otel",
+      "name": "otel",
+      "import_path": "github.com/faustbrian/go-log/otel",
+      "kind": "public",
+      "production": true,
+      "executable": true,
+      "coverage_required": true,
+      "build_required": true,
+      "build_tags": []
+    }
+  ]
+}

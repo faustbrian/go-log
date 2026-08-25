@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/golib/pkg/log/handler/capture"
-	logotel "github.com/faustbrian/golib/pkg/log/otel"
+	"github.com/faustbrian/go-log/handler/capture"
+	logotel "github.com/faustbrian/go-log/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 

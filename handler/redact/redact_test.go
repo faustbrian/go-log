@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/golib/pkg/log/handler/capture"
-	"github.com/faustbrian/golib/pkg/log/handler/redact"
+	"github.com/faustbrian/go-log/handler/capture"
+	"github.com/faustbrian/go-log/handler/redact"
 )
 
 func TestNewRejectsNilHandler(t *testing.T) {

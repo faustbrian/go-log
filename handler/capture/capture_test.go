@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/golib/pkg/log/handler/capture"
+	"github.com/faustbrian/go-log/handler/capture"
 )
 
 func TestHandlerCapturesEnabledRecords(t *testing.T) {
