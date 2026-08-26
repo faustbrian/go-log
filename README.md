@@ -134,18 +134,11 @@ See [adoption](docs/adoption.md), [recipes](docs/recipes.md),
 [operations](docs/operations.md), and [architecture](docs/architecture.md) for
 complete guidance.
 
-## Stability and support
+## Documentation
 
-The compatibility promise is documented in
-[docs/compatibility.md](docs/compatibility.md). Security issues should follow
-[SECURITY.md](SECURITY.md). Contributions follow
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Use the [documentation index](docs/README.md) for adoption, architecture,
+operations, recipes, compatibility, and migration guidance.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-## Documentation
-
-Use the [documentation index](docs/README.md) for package-owned guides,
-operational contracts, examples, and maintainer references.
