@@ -6,6 +6,11 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- Replace archived monorepo links and completed execution artifacts with a
+  standalone, human-oriented documentation structure.
+
 ## [1.0.0] - 2026-08-25
 
 ### Changed
