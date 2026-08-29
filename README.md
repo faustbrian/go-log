@@ -21,7 +21,7 @@ drivers.
 
 ## Requirements
 
-- Go 1.24 or newer.
+- Go 1.26 or newer.
 - OpenTelemetry API v1.41 when importing the optional `otel` bridge.
 
 ## Install
@@ -134,18 +134,11 @@ See [adoption](docs/adoption.md), [recipes](docs/recipes.md),
 [operations](docs/operations.md), and [architecture](docs/architecture.md) for
 complete guidance.
 
-## Stability and support
+## Documentation
 
-The compatibility promise is documented in
-[docs/compatibility.md](docs/compatibility.md). Security issues should follow
-[SECURITY.md](SECURITY.md). Contributions follow
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Use the [documentation index](docs/README.md) for adoption, architecture,
+operations, recipes, compatibility, and migration guidance.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-## Ecosystem
-
-Use the [Golib documentation portal](https://github.com/faustbrian/golib/blob/main/docs/index.md)
-to choose companion packages, supported stacks, recipes, and operations guidance.
