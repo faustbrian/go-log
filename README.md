@@ -21,7 +21,7 @@ drivers.
 
 ## Requirements
 
-- Go 1.24 or newer.
+- Go 1.26 or newer.
 - OpenTelemetry API v1.41 when importing the optional `otel` bridge.
 
 ## Install
