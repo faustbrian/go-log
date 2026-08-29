@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "repository": "github.com/faustbrian/go-log",
+  "module": ".",
+  "package": "handler/rotate",
+  "gate": "mutation",
+  "input_digest": "sha256:5dc56de92c6218b3165a5243e1bb3504538ab258b455a61676ad3ba84931daa9",
+  "verifier_digest": "sha256:9a9499ff68a8dfd49a0be7995590297a8ee563a1aa226bfd8b9361dc53058108",
+  "result": "passed",
+  "report_digest": "sha256:b06e0be793728c9409a7428f8a68faac553ebe95148e3df8d101278cbbee1115",
+  "environment": {
+    "CGO_ENABLED": "1",
+    "GOARCH": "arm64",
+    "GOOS": "darwin",
+    "GOVERSION": "go1.27.0",
+    "gremlins_binary_sha256": "sha256:6a2beddc477eb410f8a670b6c9049558563d3c4327498fe31604d31c773a959e"
+  },
+  "completed_at": "2026-08-29T05:38:21.423108Z"
+}

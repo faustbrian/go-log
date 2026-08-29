@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "repository": "github.com/faustbrian/go-log",
+  "module": ".",
+  "package": "handler/stack",
+  "gate": "mutation",
+  "input_digest": "sha256:04b88f9dab51449a3e6791adb14f6d06a778d1b65f151bc6eb0d0d99b6c4b630",
+  "verifier_digest": "sha256:9a9499ff68a8dfd49a0be7995590297a8ee563a1aa226bfd8b9361dc53058108",
+  "result": "passed",
+  "report_digest": "sha256:cd616165ceccfbf30edebe01e8bb3945212ff7e1f1c6a00d8f6c3787d6e1841e",
+  "environment": {
+    "CGO_ENABLED": "1",
+    "GOARCH": "arm64",
+    "GOOS": "darwin",
+    "GOVERSION": "go1.27.0",
+    "gremlins_binary_sha256": "sha256:6a2beddc477eb410f8a670b6c9049558563d3c4327498fe31604d31c773a959e"
+  },
+  "completed_at": "2026-08-29T05:39:24.027321Z"
+}
