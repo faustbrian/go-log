@@ -9,7 +9,7 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Replace copied repository verification tooling with the released
-  `go-library-tools` v1.0.5 contract while retaining logging-specific API,
+  `go-library-tools` v1.0.13 contract while retaining logging-specific API,
   fuzzing, benchmark, and OpenTelemetry boundary verification.
 
 ### Documentation
