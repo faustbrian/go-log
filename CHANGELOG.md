@@ -11,11 +11,17 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Replace copied repository verification tooling with the released
   `go-library-tools` v1.0.5 contract while retaining logging-specific API,
   fuzzing, benchmark, and OpenTelemetry boundary verification.
+- Adopt the checksum-verified `go-library-tools` v1.3.0 CLI, schema-v2 cohesion
+  metadata, and repository-local cohesion gate while retaining package-owned
+  source, tests, and evidence.
+- Pin reusable CI to the immutable v1.3.0 cohesion workflow.
 
 ### Documentation
 
 - Replace obsolete repository links and completed execution artifacts with a
   standalone, human-oriented documentation structure.
+- Link the module to the versioned Golib ecosystem and observability-family
+  guidance, and align the minimum Go claim with `go.mod`.
 
 ## [1.0.0] - 2026-08-25
 

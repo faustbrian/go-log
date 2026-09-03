@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "repository": "github.com/faustbrian/go-log",
   "go_version": "1.26.6",
   "modules": [
@@ -137,6 +137,97 @@
       "goal_files": [],
       "goal_status": "not-applicable",
       "goal_evidence": [],
+      "cohesion": {
+        "family": "observability",
+        "secondary_capabilities": [
+          "testing-and-conformance"
+        ],
+        "responsibility": "Provide composable log/slog handlers for routing, redaction, sampling, bounded asynchronous delivery, capture, local rotation, and OpenTelemetry correlation.",
+        "non_goals": [
+          "Define a proprietary logger interface or global logger.",
+          "Initialize application logging or OpenTelemetry providers.",
+          "Provide vendor-specific transports, exporters, or service-wide logging policy."
+        ],
+        "public_package_identifier": "log",
+        "primary_entry_packages": [
+          "github.com/faustbrian/go-log"
+        ],
+        "package_selection": {
+          "github.com/faustbrian/go-log": "Use for standard slog logger construction and focused composable handlers without adopting a proprietary logging facade.",
+          "github.com/faustbrian/go-log/handler/async": "Use for bounded asynchronous delivery with explicit overflow, flush, and shutdown semantics.",
+          "github.com/faustbrian/go-log/handler/capture": "Use in tests for concurrency-safe record capture and semantic assertions.",
+          "github.com/faustbrian/go-log/handler/redact": "Use for structural key and path redaction before values reach downstream handlers.",
+          "github.com/faustbrian/go-log/handler/rotate": "Use for permission-enforced local file rotation when platform log streams are unavailable.",
+          "github.com/faustbrian/go-log/handler/sample": "Use for explicit every-N or deterministic key-based sampling with observable counters.",
+          "github.com/faustbrian/go-log/handler/stack": "Use for synchronous fan-out with inclusive per-handler level routing.",
+          "github.com/faustbrian/go-log/otel": "Use to add OpenTelemetry trace and span correlation from a standard context without initializing a provider."
+        },
+        "lifecycle_status": "active",
+        "maturity": "stable",
+        "construction_styles": [
+          "functional-options",
+          "new-options",
+          "plain-function"
+        ],
+        "lifecycle_styles": [
+          "close",
+          "shutdown",
+          "stateless"
+        ],
+        "ownership": {
+          "configuration": "caller",
+          "mutable_inputs": [
+            "borrow",
+            "copy"
+          ],
+          "runtime_resources": "package",
+          "background_work": "package"
+        },
+        "optional_owned_dependencies": [],
+        "adapters": [
+          "github.com/faustbrian/go-log/otel"
+        ],
+        "companions": [
+          "github.com/faustbrian/go-log/handler/async",
+          "github.com/faustbrian/go-log/handler/capture",
+          "github.com/faustbrian/go-log/handler/redact",
+          "github.com/faustbrian/go-log/handler/rotate",
+          "github.com/faustbrian/go-log/handler/sample",
+          "github.com/faustbrian/go-log/handler/stack"
+        ],
+        "supported_go": {
+          "minimum": "1.26.6",
+          "tested": [
+            "1.26.6"
+          ]
+        },
+        "supported_platforms": [
+          "portable-go"
+        ],
+        "supported_backends": [
+          "local-filesystem"
+        ],
+        "supported_protocols": [],
+        "documentation": {
+          "readme": "README.md",
+          "api": "https://pkg.go.dev/github.com/faustbrian/go-log",
+          "adoption": "docs/adoption.md",
+          "security": "SECURITY.md",
+          "compatibility": "docs/compatibility.md",
+          "performance": "docs/operations.md",
+          "examples": "docs/recipes.md",
+          "faq": "docs/faq.md",
+          "changelog": "CHANGELOG.md",
+          "pkg_go_dev": "https://pkg.go.dev/github.com/faustbrian/go-log",
+          "ecosystem_index": "https://github.com/faustbrian/go-library-tools/blob/v1.3.0/docs/ecosystem/README.md"
+        },
+        "known_good_compatibility_sets": [],
+        "delivery": {
+          "implementation": "not-started",
+          "hardening": "not-started",
+          "release": "not-started"
+        }
+      },
       "gates": {
         "api_compatibility": true,
         "benchmarks": true,

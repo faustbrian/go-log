@@ -38,7 +38,7 @@ The module's `go` directive is the minimum supported release. CI tests that
 release and the current stable release. Support moves forward only in a minor
 or major module release and is recorded in the changelog.
 
-The current minimum is Go 1.24.
+The current minimum is Go 1.26.6.
 
 ## OpenTelemetry versions
 
