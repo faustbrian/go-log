@@ -2,17 +2,22 @@
 
 ## Supported versions
 
-The latest stable v1 release receives security fixes; additional
-support windows will be documented here when offered.
+The latest stable v1 release receives security fixes. Older releases and the
+`main` branch are unsupported; upgrade before reporting unless the issue is a
+regression under active development.
 
 | Version | Supported |
 | --- | --- |
-| Unreleased | Yes |
+| Latest stable v1 release | Yes |
+| Older releases | No |
+| `main` | No |
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a suspected vulnerability. Use GitHub's private
-vulnerability reporting for `faustbrian/log`. Include:
+Do not open a public issue for a suspected vulnerability. Use
+[GitHub's private vulnerability reporting for
+`faustbrian/go-log`](https://github.com/faustbrian/go-log/security/advisories/new).
+Include:
 
 - affected version or commit;
 - minimal reproduction;

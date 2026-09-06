@@ -19,6 +19,8 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- Document the stable v1 lifecycle and ownership boundary, and publish live
+  support and private security-reporting entry points.
 - Replace obsolete repository links and completed execution artifacts with a
   standalone, human-oriented documentation structure.
 - Link the module to the versioned Golib ecosystem and observability-family

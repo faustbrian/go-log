@@ -2,7 +2,9 @@
 
 ## Getting started
 
+- [Install and quick start](../README.md#install)
 - [Adoption](adoption.md)
+- [Package API](https://pkg.go.dev/github.com/faustbrian/go-log)
 
 ## Concepts and design
 
@@ -12,6 +14,8 @@
 ## Operations and security
 
 - [Operations](operations.md)
+- [Security policy and private reporting](../SECURITY.md)
+- [Support](../SUPPORT.md)
 
 ## Reference and maintenance
 
@@ -23,3 +27,4 @@
 
 - [Contribution guide](../CONTRIBUTING.md)
 - [Release history](../CHANGELOG.md)
+- [License](../LICENSE)
