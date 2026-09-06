@@ -19,6 +19,8 @@ The package does not define a proprietary logger interface, replace the
 standard JSON or text encoders, initialize OpenTelemetry, or ship direct vendor
 drivers.
 
+The module is a stable v1 public library and requires Go 1.26.6 or newer.
+
 Shared construction, ownership, lifecycle, and composition expectations are in
 the versioned [Golib ecosystem index](https://github.com/faustbrian/go-library-tools/blob/v1.4.0/docs/ecosystem/README.md)
 and [observability family guidance](https://github.com/faustbrian/go-library-tools/blob/v1.4.0/docs/ecosystem/design-language.md#package-families-and-selection).
@@ -81,6 +83,18 @@ func RunWorker(logger *slog.Logger) error {
 | `handler/rotate` | Permission-enforced rotating `io.WriteCloser` |
 | `otel` | Optional trace/span correlation from standard context |
 
+## Lifecycle and ownership
+
+Callers own the `*slog.Logger`, wrapped handlers, OpenTelemetry providers, and
+shutdown ordering. The root, stack, redaction, sampling, capture, and OTel
+handlers start no background workers and require no close operation. Capture
+retains records until `Reset`; collection returns snapshots without clearing
+them. Async owns a bounded worker and must be drained with `Shutdown`; rotate
+owns its active file and must be closed. Concurrent use requires wrapped
+handlers and every caller-provided collaborator, including rules, samplers,
+key functions, and levelers, to be concurrency-safe. The built-in stateless
+and atomic policies are safe within their documented resource bounds.
+
 ## Recommended production topology
 
 For Kubernetes, write standard JSON to stdout or stderr and let the platform
@@ -141,7 +155,10 @@ complete guidance.
 ## Documentation
 
 Use the [documentation index](docs/README.md) for adoption, architecture,
-operations, recipes, compatibility, and migration guidance.
+operations, recipes, compatibility, and migration guidance. For project help,
+use [Support](SUPPORT.md); report vulnerabilities through the private process
+in the [Security policy](SECURITY.md). See the [changelog](CHANGELOG.md) for
+release history.
 
 ## License
 
