@@ -19,6 +19,11 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- Clarify that the root module uses `v<version>` tags and reserve
+  directory-prefixed tags for independently releasable nested modules.
+- Correct the `v1.0.0` release date to match its signed tag and published
+  GitHub release.
+
 - Document the stable v1 lifecycle and ownership boundary, and publish live
   support and private security-reporting entry points.
 - Replace obsolete repository links and completed execution artifacts with a
@@ -26,7 +31,7 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Link the module to the versioned Golib ecosystem and observability-family
   guidance, and align the minimum Go claim with `go.mod`.
 
-## [1.0.0] - 2026-08-25
+## [1.0.0] - 2026-08-26
 
 ### Changed
 
