@@ -33,7 +33,7 @@ and [observability family guidance](https://github.com/faustbrian/go-library-too
 ## Install
 
 ```sh
-go get github.com/faustbrian/go-log
+go get github.com/faustbrian/go-log@v1
 ```
 
 ## Quick start
