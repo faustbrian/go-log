@@ -7,7 +7,7 @@
 [![Documentation](https://img.shields.io/badge/docs-checked_in_CI-blue)](docs/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/faustbrian/go-log.svg)](https://pkg.go.dev/github.com/faustbrian/go-log)
 [![Release](https://img.shields.io/github/v/release/faustbrian/go-log?sort=semver)](https://github.com/faustbrian/go-log/releases)
-[![Go](https://img.shields.io/badge/go-1.26.6-00ADD8?logo=go)](https://go.dev/)
+[![Go](https://img.shields.io/badge/go-1.27.0-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 `log` is a production-oriented toolkit built on Go's standard `log/slog`
@@ -19,7 +19,7 @@ The package does not define a proprietary logger interface, replace the
 standard JSON or text encoders, initialize OpenTelemetry, or ship direct vendor
 drivers.
 
-The module is a stable v1 public library and requires Go 1.26.6 or newer.
+The module is a stable v1 public library and requires Go 1.27.0 or newer.
 
 Shared construction, ownership, lifecycle, and composition expectations are in
 the versioned [Golib ecosystem index](https://github.com/faustbrian/go-library-tools/blob/v1.4.0/docs/ecosystem/README.md)
@@ -27,7 +27,7 @@ and [observability family guidance](https://github.com/faustbrian/go-library-too
 
 ## Requirements
 
-- Go 1.26.6 or newer.
+- Go 1.27.0 or newer.
 - OpenTelemetry API v1.41 when importing the optional `otel` bridge.
 
 ## Install
