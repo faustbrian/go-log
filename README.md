@@ -19,7 +19,7 @@ The package does not define a proprietary logger interface, replace the
 standard JSON or text encoders, initialize OpenTelemetry, or ship direct vendor
 drivers.
 
-The module is a stable v1 public library and requires Go 1.26.6 or newer.
+The module is a stable v1 public library and requires Go 1.27.0 or newer.
 
 Shared construction, ownership, lifecycle, and composition expectations are in
 the versioned [Golib ecosystem index](https://github.com/faustbrian/go-library-tools/blob/v1.4.0/docs/ecosystem/README.md)
@@ -27,7 +27,7 @@ and [observability family guidance](https://github.com/faustbrian/go-library-too
 
 ## Requirements
 
-- Go 1.26.6 or newer.
+- Go 1.27.0 or newer.
 - OpenTelemetry API v1.41 when importing the optional `otel` bridge.
 
 ## Install
