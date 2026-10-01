@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/faustbrian/go-log"
+	log "github.com/faustbrian/go-log/v2"
 )
 
 func TestNewRejectsNilHandler(t *testing.T) {
@@ -23,11 +23,11 @@ func TestNewRejectsNilHandler(t *testing.T) {
 	}
 }
 
-func TestNewAppliesOptionsInOrder(t *testing.T) {
+func TestTrustedNewAppliesOptionsInOrder(t *testing.T) {
 	t.Parallel()
 
 	var output bytes.Buffer
-	logger, err := log.New(
+	logger, err := log.TrustedNew(
 		slog.NewJSONHandler(&output, nil),
 		log.WithAttrs(slog.String("service", "orders")),
 		log.WithGroup("request"),
@@ -81,7 +81,7 @@ func TestNewRejectsOptionThatRemovesHandler(t *testing.T) {
 	}
 }
 
-func TestJSONAndTextPreserveStandardHandlers(t *testing.T) {
+func TestTrustedJSONAndTextPreserveStandardHandlers(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
@@ -90,13 +90,13 @@ func TestJSONAndTextPreserveStandardHandlers(t *testing.T) {
 	}{
 		"json": {
 			newLogger: func(output *bytes.Buffer) *slog.Logger {
-				return log.JSON(output, nil)
+				return log.TrustedJSON(output, nil)
 			},
 			contains: `"msg":"hello"`,
 		},
 		"text": {
 			newLogger: func(output *bytes.Buffer) *slog.Logger {
-				return log.Text(output, nil)
+				return log.TrustedText(output, nil)
 			},
 			contains: `msg=hello`,
 		},

@@ -3,6 +3,7 @@ package rotate
 import (
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -86,6 +87,84 @@ func TestNewDefaultsToOwnerOnlyPermissions(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o600 {
 		t.Fatalf("mode = %o, want 600", got)
+	}
+}
+
+func TestWriterRejectsSymlinkedActiveAndBackupPaths(t *testing.T) {
+	t.Parallel()
+
+	directory := t.TempDir()
+	target := filepath.Join(directory, "target")
+	if err := os.WriteFile(target, []byte("protected"), 0o640); err != nil {
+		t.Fatalf("WriteFile(target) error = %v", err)
+	}
+	active := filepath.Join(directory, "app.log")
+	if err := os.Symlink(target, active); err != nil {
+		t.Fatalf("Symlink(active) error = %v", err)
+	}
+	if writer, err := New(Options{Path: active, MaxBytes: 1, Backups: 1}); err == nil || writer != nil {
+		t.Fatalf("New(symlink) = (%v, %v), want nil and error", writer, err)
+	}
+	if contents, err := os.ReadFile(target); err != nil || string(contents) != "protected" {
+		t.Fatalf("target after active symlink = %q, %v", contents, err)
+	}
+
+	if err := os.Remove(active); err != nil {
+		t.Fatalf("Remove(active symlink) error = %v", err)
+	}
+	writer := mustNewWriter(t, Options{Path: active, MaxBytes: 1, Backups: 1})
+	if _, err := writer.Write([]byte("x")); err != nil {
+		t.Fatalf("Write(seed) error = %v", err)
+	}
+	backup := active + ".1"
+	if err := os.Symlink(target, backup); err != nil {
+		t.Fatalf("Symlink(backup) error = %v", err)
+	}
+	if _, err := writer.Write([]byte("rotate")); err == nil {
+		t.Fatal("Write() error = nil, want unsafe backup rejection")
+	}
+	if info, err := os.Lstat(backup); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("backup symlink was modified: mode=%v error=%v", info.Mode(), err)
+	}
+	if contents, err := os.ReadFile(target); err != nil || string(contents) != "protected" {
+		t.Fatalf("target after backup symlink = %q, %v", contents, err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
+func TestRotationFailsClosedWhenActivePathIsReplacedAfterRemoval(t *testing.T) {
+	directory := t.TempDir()
+	active := filepath.Join(directory, "app.log")
+	target := filepath.Join(directory, "target")
+	if err := os.WriteFile(target, []byte("protected"), 0o640); err != nil {
+		t.Fatalf("WriteFile(target) error = %v", err)
+	}
+	writer := mustNewWriter(t, Options{Path: active, MaxBytes: 1, Backups: 0})
+	if _, err := writer.Write([]byte("x")); err != nil {
+		t.Fatalf("Write(seed) error = %v", err)
+	}
+
+	oldRemove := removeFile
+	defer func() { removeFile = oldRemove }()
+	removeFile = func(path string) error {
+		if err := oldRemove(path); err != nil {
+			return err
+		}
+
+		return os.Symlink(target, path)
+	}
+	_, err := writer.Write([]byte("rotate"))
+	removeFile = oldRemove
+	if err == nil {
+		t.Fatal("Write() error = nil, want raced replacement rejection")
+	}
+	if contents, readErr := os.ReadFile(target); readErr != nil || string(contents) != "protected" {
+		t.Fatalf("target after replacement race = %q, %v", contents, readErr)
+	}
+	if closeErr := writer.Close(); closeErr != nil {
+		t.Fatalf("Close() error = %v", closeErr)
 	}
 }
 
@@ -534,6 +613,17 @@ func TestSyncAndCloseJoinFileErrors(t *testing.T) {
 	}
 }
 
+func TestWriteRotationCheckDoesNotOverflow(t *testing.T) {
+	t.Parallel()
+
+	if !wouldExceedLimit(math.MaxInt64-1, 2, math.MaxInt64) {
+		t.Fatal("wouldExceedLimit() = false, want true for overflowing sum")
+	}
+	if wouldExceedLimit(math.MaxInt64-1, 1, math.MaxInt64) {
+		t.Fatal("wouldExceedLimit() = true at exact boundary")
+	}
+}
+
 func mustNewWriter(t *testing.T, options Options) *Writer {
 	t.Helper()
 	writer, err := New(options)
@@ -586,7 +676,15 @@ func (info fakeInfo) IsDir() bool        { return false }
 func (info fakeInfo) Sys() any           { return nil }
 
 func replaceOpenFile(replacement func(string, int, os.FileMode) (file, error)) func() {
-	old := openFile
+	oldOpen := openFile
+	oldLstat := lstatFile
+	oldSame := sameFile
 	openFile = replacement
-	return func() { openFile = old }
+	lstatFile = func(string) (os.FileInfo, error) { return fakeInfo{}, nil }
+	sameFile = func(os.FileInfo, os.FileInfo) bool { return true }
+	return func() {
+		openFile = oldOpen
+		lstatFile = oldLstat
+		sameFile = oldSame
+	}
 }

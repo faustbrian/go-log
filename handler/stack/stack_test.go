@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/stack"
+	"github.com/faustbrian/go-log/v2/handler/stack"
 )
 
 func TestNewRejectsInvalidRoutes(t *testing.T) {

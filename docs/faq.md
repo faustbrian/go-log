@@ -28,11 +28,11 @@ The standard logger API does not expose `Handler.Handle` errors. Observe async
 failures through `OnError` and `Stats`; observe file or Collector health through
 operational monitoring. Direct handler calls still return errors.
 
-## Why does shutdown return a deadline error while logs continue draining?
+## Why does shutdown return a deadline error?
 
-The context bounds the caller's wait, not the shared background drain. A later
-`Shutdown` call can wait again. This prevents one short deadline from silently
-discarding accepted records.
+The context bounds the caller's wait and cancels the shared delivery context.
+Context-aware downstream handlers stop; arbitrary handlers that ignore
+cancellation may remain blocked. A later `Shutdown` call can wait again.
 
 ## Why does `Enabled` return false after shutdown begins?
 
@@ -41,9 +41,11 @@ loggers avoid constructing attributes that would be rejected.
 
 ## Which overflow policy should I choose?
 
-Start with `Block` for correctness and measure latency. Use `SyncFallback` when
-loss is unacceptable but occasional caller latency is permitted. Use a drop
-policy only when the owning event class explicitly tolerates loss.
+The default is nonblocking `DropNewest`. Select `Block` or `SyncFallback`
+explicitly and provide a positive `AdmissionTimeout` when admission may wait.
+Handle timeout rejection separately from accepted-delivery loss. Neither
+policy guarantees delivery through arbitrary blocking or failing callbacks;
+use a durable logging transport when the event class cannot tolerate loss.
 
 ## Does `DropOldest` return an error?
 
@@ -59,19 +61,25 @@ opaque; implement `LogValuer` to provide an immutable structured snapshot.
 
 ## Why was my `LogValuer` evaluated early?
 
-Async must freeze values before retaining them, and redaction resolves
-non-sensitive values to handle panics and recursive values safely. A value
-matched by a redaction rule is never evaluated.
+Async must freeze values before retaining them. Default redaction omits caller
+values without evaluating them. Explicit trusted-attribute redaction resolves
+unmatched values to handle panics and recursive values safely; a matched value
+is never evaluated. Put the privacy owner before retaining decorators.
 
 ## Can redaction remove secrets from messages?
 
-No. Messages should be fixed event names. Put variable data in attributes. A
-rendered string no longer has reliable structure or type information.
+The secure default replaces the complete message with `[REDACTED]`. String
+inspection cannot reliably identify only secret fragments. Set
+`PreserveTrustedMessage` only when the message is a fixed,
+application-controlled event name; preserved messages above 1,024 bytes are
+rejected. Omit variable private data or explicitly classify it before trusted
+attribute preservation.
 
 ## Why did an exact redaction path stop matching after `WithGroup`?
 
-`WithGroup` changes the structural path, as required by `slog.Handler`. Update
-the path or use a broad key rule for values that are sensitive at every depth.
+In explicit trusted-attribute mode, `WithGroup` changes the structural path.
+Update the path or use a broad key rule for values sensitive at every depth.
+Default redaction instead omits groups and attributes, including their names.
 
 ## Can a custom key contain a dot?
 

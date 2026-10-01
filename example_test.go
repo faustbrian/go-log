@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/faustbrian/go-log"
-	"github.com/faustbrian/go-log/handler/async"
-	"github.com/faustbrian/go-log/handler/capture"
-	"github.com/faustbrian/go-log/handler/redact"
-	"github.com/faustbrian/go-log/handler/rotate"
-	"github.com/faustbrian/go-log/handler/stack"
-	logotel "github.com/faustbrian/go-log/otel"
+	log "github.com/faustbrian/go-log/v2"
+	"github.com/faustbrian/go-log/v2/handler/async"
+	"github.com/faustbrian/go-log/v2/handler/capture"
+	"github.com/faustbrian/go-log/v2/handler/redact"
+	"github.com/faustbrian/go-log/v2/handler/rotate"
+	"github.com/faustbrian/go-log/v2/handler/stack"
+	logotel "github.com/faustbrian/go-log/v2/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -31,7 +31,7 @@ func ExampleNew() {
 	logger.Info("ready")
 
 	// Output:
-	// level=INFO msg=ready service=orders
+	// level=INFO msg=[REDACTED]
 }
 
 func Example_stackRouting() {
@@ -67,8 +67,9 @@ func Example_stackRouting() {
 func Example_structuralRedaction() {
 	var output bytes.Buffer
 	next := slog.NewJSONHandler(&output, &slog.HandlerOptions{ReplaceAttr: removeTime})
-	handler, err := redact.New(next, &redact.Options{
-		Rules: []redact.Rule{redact.Keys("password", "authorization")},
+	handler, err := redact.New(next, &redact.Options{PreserveTrustedAttributes: true,
+		Rules:                  []redact.Rule{redact.Keys("password", "authorization")},
+		PreserveTrustedMessage: true,
 	})
 	if err != nil {
 		panic(err)
@@ -88,7 +89,7 @@ func Example_boundedAsync() {
 	sink := capture.New()
 	handler, err := async.New(sink, async.Options{
 		Capacity: 16,
-		Overflow: async.Block,
+		Overflow: async.Block, AdmissionTimeout: time.Second,
 	})
 	if err != nil {
 		panic(err)

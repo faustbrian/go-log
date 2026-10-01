@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/async"
-	"github.com/faustbrian/go-log/handler/redact"
-	"github.com/faustbrian/go-log/handler/sample"
-	"github.com/faustbrian/go-log/handler/stack"
+	"github.com/faustbrian/go-log/v2/handler/async"
+	"github.com/faustbrian/go-log/v2/handler/redact"
+	"github.com/faustbrian/go-log/v2/handler/sample"
+	"github.com/faustbrian/go-log/v2/handler/stack"
 )
 
 func BenchmarkPipelines(benchmark *testing.B) {
 	record := benchmarkRecord()
 	jsonHandler := slog.NewJSONHandler(io.Discard, nil)
-	redacted, err := redact.New(jsonHandler, &redact.Options{
+	redacted, err := redact.New(jsonHandler, &redact.Options{PreserveTrustedAttributes: true,
 		Rules: []redact.Rule{redact.Keys("token")},
 	})
 	if err != nil {
@@ -59,7 +59,7 @@ func BenchmarkPipelines(benchmark *testing.B) {
 func BenchmarkAsync(benchmark *testing.B) {
 	handler, err := async.New(slog.NewJSONHandler(io.Discard, nil), async.Options{
 		Capacity: 1024,
-		Overflow: async.Block,
+		Overflow: async.Block, AdmissionTimeout: time.Second,
 	})
 	if err != nil {
 		benchmark.Fatalf("async.New() error = %v", err)
@@ -87,7 +87,7 @@ func TestAllocationBudgets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stack.New() error = %v", err)
 	}
-	redacted, err := redact.New(noop, &redact.Options{Rules: []redact.Rule{redact.Keys("token")}})
+	redacted, err := redact.New(noop, &redact.Options{PreserveTrustedAttributes: true, Rules: []redact.Rule{redact.Keys("token")}})
 	if err != nil {
 		t.Fatalf("redact.New() error = %v", err)
 	}

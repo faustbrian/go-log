@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+
+	"github.com/faustbrian/go-log/v2/internal/slogrecord"
 )
 
 var (
@@ -32,6 +34,8 @@ type Route struct {
 // WithAttrs and WithGroup do not modify their parent.
 type Handler struct {
 	routes []Route
+	usage  slogrecord.Usage
+	err    error
 }
 
 // New validates routes and constructs a fan-out handler.
@@ -53,6 +57,9 @@ func New(routes ...Route) (*Handler, error) {
 // Enabled reports whether at least one matching downstream handler accepts
 // level.
 func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
+	if handler.err != nil {
+		return false
+	}
 	for _, route := range handler.routes {
 		if route.accepts(level) && route.Handler.Enabled(ctx, level) {
 			return true
@@ -65,12 +72,19 @@ func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
 // Handle delivers record to every matching enabled route and joins all sink
 // errors. A failure from one route never prevents delivery to later routes.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
+	if handler.err != nil {
+		return handler.err
+	}
 	var result error
 	for _, route := range handler.routes {
 		if !route.accepts(record.Level) || !route.Handler.Enabled(ctx, record.Level) {
 			continue
 		}
-		if err := route.Handler.Handle(ctx, cloneRecord(record)); err != nil {
+		cloned, err := slogrecord.CloneRawWithUsage(record, handler.usage)
+		if err != nil {
+			return err
+		}
+		if err := route.Handler.Handle(ctx, cloned); err != nil {
 			result = errors.Join(result, err)
 		}
 	}
@@ -80,26 +94,49 @@ func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 // WithAttrs returns a derived stack whose routes include attrs.
 func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	if handler.err != nil {
+		return &Handler{routes: append([]Route(nil), handler.routes...), usage: handler.usage, err: handler.err}
+	}
+	if len(attrs) == 0 {
+		return handler
+	}
+	owned, usage, err := slogrecord.CloneRawAttrsWithUsage(attrs, handler.usage)
+	if err != nil {
+		return &Handler{routes: append([]Route(nil), handler.routes...), usage: handler.usage, err: err}
+	}
 	routes := make([]Route, len(handler.routes))
 	for index, route := range handler.routes {
-		owned := cloneAttrs(attrs)
-		route.Handler = route.Handler.WithAttrs(owned)
+		routeAttrs, err := slogrecord.CloneRawAttrs(owned)
+		if err != nil {
+			return &Handler{routes: append([]Route(nil), handler.routes...), usage: handler.usage, err: err}
+		}
+		route.Handler = route.Handler.WithAttrs(routeAttrs)
 		routes[index] = route
 	}
 
-	return &Handler{routes: routes}
+	return &Handler{routes: routes, usage: usage}
 }
 
 // WithGroup returns a derived stack whose routes qualify subsequent attrs
 // with name.
 func (handler *Handler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return handler
+	}
+	if handler.err != nil {
+		return &Handler{routes: append([]Route(nil), handler.routes...), usage: handler.usage, err: handler.err}
+	}
+	usage, err := handler.usage.WithGroup(name)
+	if err != nil {
+		return &Handler{routes: append([]Route(nil), handler.routes...), usage: handler.usage, err: err}
+	}
 	routes := make([]Route, len(handler.routes))
 	for index, route := range handler.routes {
 		route.Handler = route.Handler.WithGroup(name)
 		routes[index] = route
 	}
 
-	return &Handler{routes: routes}
+	return &Handler{routes: routes, usage: usage}
 }
 
 func (route Route) accepts(level slog.Level) bool {
@@ -111,31 +148,4 @@ func (route Route) accepts(level slog.Level) bool {
 	}
 
 	return true
-}
-
-func cloneRecord(record slog.Record) slog.Record {
-	cloned := slog.NewRecord(record.Time, record.Level, record.Message, record.PC)
-	record.Attrs(func(attr slog.Attr) bool {
-		cloned.AddAttrs(cloneAttr(attr))
-		return true
-	})
-
-	return cloned
-}
-
-func cloneAttrs(attrs []slog.Attr) []slog.Attr {
-	cloned := make([]slog.Attr, len(attrs))
-	for index, attr := range attrs {
-		cloned[index] = cloneAttr(attr)
-	}
-
-	return cloned
-}
-
-func cloneAttr(attr slog.Attr) slog.Attr {
-	if attr.Value.Kind() != slog.KindGroup {
-		return attr
-	}
-
-	return slog.Attr{Key: attr.Key, Value: slog.GroupValue(cloneAttrs(attr.Value.Group())...)}
 }

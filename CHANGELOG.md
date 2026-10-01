@@ -24,12 +24,42 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Correct the `v1.0.0` release date to match its signed tag and published
   GitHub release.
 
-- Document the stable v1 lifecycle and ownership boundary, and publish live
+- Document the stable public lifecycle and ownership boundary, and publish live
   support and private security-reporting entry points.
 - Replace obsolete repository links and completed execution artifacts with a
   standalone, human-oriented documentation structure.
 - Link the module to the versioned Golib ecosystem and observability-family
   guidance, and align the minimum Go claim with `go.mod`.
+
+## [2.0.0] - 2026-10-01 (prepared; publication pending)
+
+### Changed
+
+- Use the official `github.com/faustbrian/go-log/v2` module and import paths;
+  retain the released v1 API snapshot beside the active v2 baseline.
+- Make root construction and redaction omit caller attributes and group names
+  and replace messages without resolving discarded values. Explicit
+  `TrustedNew`, `TrustedJSON`, `TrustedText`, and trusted-attribute/message
+  preservation options retain bounded application-selected data; trusted
+  messages have a 1,024-byte limit.
+- Give each selective redaction callback, including composed Any rules, and each
+  root attribute-option invocation independent bounded group data. Reject oversized root attribute
+  options before downstream derivation.
+- Reject cumulative bound and record structure above fixed attribute-count or
+  group-depth limits across cloning, retaining, routing, sampling, and redaction.
+- Check record admission before OpenTelemetry correlation copying and bound
+  deterministic sampling keys to 1,024 bytes; oversized keys drop at fractional
+  rates while zero/one-rate short circuits remain unchanged.
+- Make async overflow nonblocking `DropNewest` by default. Explicit `Block`
+  and `SyncFallback` now require a positive `AdmissionTimeout`; admission
+  expiry rejects before acceptance without leaving delivery sequence holes.
+- Honor canceled Flush callers while another submission waits for capacity;
+  retain accepted-record ordering, accounting, and cooperative shutdown.
+- Coalesce async completion history behind held deliveries into intervals
+  bounded by unresolved accepted work, preserving exact Flush snapshots.
+- Cancel cooperative async delivery when shutdown expires without detached
+  drain work. Accepted callbacks still require application-owned bounds.
+- Reject symbolic-link and non-regular active or backup rotation paths.
 
 ## [1.0.0] - 2026-08-26
 

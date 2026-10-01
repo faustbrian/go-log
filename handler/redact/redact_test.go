@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/capture"
-	"github.com/faustbrian/go-log/handler/redact"
+	logpkg "github.com/faustbrian/go-log/v2"
+	"github.com/faustbrian/go-log/v2/handler/capture"
+	"github.com/faustbrian/go-log/v2/handler/redact"
 )
 
 func TestNewRejectsNilHandler(t *testing.T) {
@@ -28,11 +29,69 @@ func TestNewRejectsNilHandler(t *testing.T) {
 	}
 }
 
+func TestHandlerRedactsMessagesByDefault(t *testing.T) {
+	t.Parallel()
+
+	sink := capture.New()
+	handler := mustNew(t, sink, nil)
+	record := slog.NewRecord(time.Unix(1, 0), slog.LevelInfo, "token=secret", 0)
+
+	if err := handler.Handle(context.Background(), record); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	captured, ok := sink.Last()
+	if !ok {
+		t.Fatal("Last() ok = false, want true")
+	}
+	if captured.Message != redact.DefaultReplacement {
+		t.Fatalf("message = %q, want %q", captured.Message, redact.DefaultReplacement)
+	}
+}
+
+func TestHandlerPreservesOnlyBoundedExplicitlyTrustedMessages(t *testing.T) {
+	t.Parallel()
+
+	sink := capture.New()
+	handler := mustNew(t, sink, &redact.Options{PreserveTrustedMessage: true})
+	record := slog.NewRecord(time.Unix(1, 0), slog.LevelInfo, "fixed message", 0)
+	if err := handler.Handle(context.Background(), record); err != nil {
+		t.Fatalf("Handle(fixed) error = %v", err)
+	}
+	captured, _ := sink.Last()
+	if captured.Message != "fixed message" {
+		t.Fatalf("message = %q, want fixed message", captured.Message)
+	}
+	record = slog.NewRecord(
+		time.Unix(1, 0), slog.LevelInfo, strings.Repeat("x", redact.MaxTrustedMessageBytes+1), 0,
+	)
+	if err := handler.Handle(context.Background(), record); !errors.Is(err, redact.ErrTrustedMessageTooLong) {
+		t.Fatalf("Handle(oversized) error = %v, want ErrTrustedMessageTooLong", err)
+	}
+}
+
+func TestHandlerRejectsImpossibleGroupCountBeforeResolvingValues(t *testing.T) {
+	t.Parallel()
+
+	resolved := 0
+	children := make([]slog.Attr, logpkg.MaxRecordAttributes)
+	children[0] = slog.Any("value", countingValuer{count: &resolved})
+	record := slog.NewRecord(time.Unix(1, 0), slog.LevelInfo, "message", 0)
+	record.AddAttrs(slog.Attr{Key: "oversized", Value: slog.GroupValue(children...)})
+	handler := mustNew(t, capture.New(), nil)
+
+	if err := handler.Handle(context.Background(), record); !errors.Is(err, logpkg.ErrRecordLimit) {
+		t.Fatalf("Handle() error = %v, want ErrRecordLimit", err)
+	}
+	if resolved != 0 {
+		t.Fatalf("resolved values = %d, want zero", resolved)
+	}
+}
+
 func TestKeysRedactsNestedDuplicateAndTypedValues(t *testing.T) {
 	t.Parallel()
 
 	sink := capture.New()
-	handler := mustNew(t, sink, &redact.Options{
+	handler := mustNew(t, sink, &redact.Options{PreserveTrustedAttributes: true,
 		Rules: []redact.Rule{redact.Keys(
 			"password", "authorization", "url", "error", "headers", "credential",
 		)},
@@ -87,7 +146,7 @@ func TestPathsOnlyRedactsExactStructuralLocation(t *testing.T) {
 
 	sink := capture.New()
 	replacement := slog.StringValue("hidden")
-	handler := mustNew(t, sink, &redact.Options{
+	handler := mustNew(t, sink, &redact.Options{PreserveTrustedAttributes: true,
 		Rules:       []redact.Rule{redact.Paths("request.token")},
 		Replacement: &replacement,
 	})
@@ -152,7 +211,7 @@ func TestRuleMutationCannotBypassLaterRedaction(t *testing.T) {
 		}
 		return false
 	})
-	handler := mustNew(t, sink, &redact.Options{
+	handler := mustNew(t, sink, &redact.Options{PreserveTrustedAttributes: true,
 		Rules: []redact.Rule{mutatingRule, redact.Keys("secret")},
 	})
 	record := slog.NewRecord(time.Unix(1, 0), slog.LevelInfo, "message", 0)
@@ -171,7 +230,7 @@ func TestSensitiveLogValuerIsNotEvaluated(t *testing.T) {
 	t.Parallel()
 
 	sink := capture.New()
-	handler := mustNew(t, sink, &redact.Options{Rules: []redact.Rule{redact.Keys("secret")}})
+	handler := mustNew(t, sink, &redact.Options{PreserveTrustedAttributes: true, Rules: []redact.Rule{redact.Keys("secret")}})
 	record := slog.NewRecord(time.Unix(1, 0), slog.LevelInfo, "valuer", 0)
 	record.AddAttrs(
 		slog.Any("secret", panicValuer{}),
@@ -196,7 +255,7 @@ func TestWithAttrsAndWithGroupPreserveStructuralPaths(t *testing.T) {
 	t.Parallel()
 
 	sink := capture.New()
-	base := mustNew(t, sink, &redact.Options{Rules: []redact.Rule{redact.Paths("request.token")}})
+	base := mustNew(t, sink, &redact.Options{PreserveTrustedAttributes: true, Rules: []redact.Rule{redact.Paths("request.token")}})
 	derived := base.
 		WithAttrs([]slog.Attr{slog.String("root", "visible")}).
 		WithGroup("request").
@@ -232,7 +291,7 @@ func TestDecoratorDelegatesEnabledAndHandleErrors(t *testing.T) {
 
 	want := errors.New("sink failed")
 	sink := &stubHandler{enabled: true, err: want}
-	handler := mustNew(t, sink, &redact.Options{})
+	handler := mustNew(t, sink, &redact.Options{PreserveTrustedAttributes: true})
 	if !handler.Enabled(context.Background(), slog.LevelWarn) {
 		t.Fatal("Enabled() = false, want true")
 	}
@@ -262,6 +321,13 @@ type panicValuer struct{}
 
 func (panicValuer) LogValue() slog.Value {
 	panic("secret panic")
+}
+
+type countingValuer struct{ count *int }
+
+func (valuer countingValuer) LogValue() slog.Value {
+	*valuer.count++
+	return slog.StringValue("value")
 }
 
 type stubHandler struct {

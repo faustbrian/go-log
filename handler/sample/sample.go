@@ -8,7 +8,12 @@ import (
 	"log/slog"
 	"math"
 	"sync/atomic"
+
+	"github.com/faustbrian/go-log/v2/internal/slogrecord"
 )
+
+// MaxKeyBytes bounds owned deterministic hashing of a returned sampling key.
+const MaxKeyBytes = 1024
 
 var (
 	// ErrNilHandler is returned when New receives no downstream handler.
@@ -26,7 +31,9 @@ var (
 // Sampler decides whether a record should be delivered.
 type Sampler func(context.Context, slog.Record) bool
 
-// KeyFunc returns the stable identity used for deterministic sampling.
+// KeyFunc returns the stable identity used for deterministic sampling. For
+// rates strictly between zero and one, keys exceeding MaxKeyBytes are dropped.
+// Callers own the callback's execution time and returned string allocation.
 type KeyFunc func(context.Context, slog.Record) string
 
 // Stats is a point-in-time sampling counter snapshot.
@@ -45,6 +52,8 @@ type Handler struct {
 	next    slog.Handler
 	sampler Sampler
 	stats   *counters
+	usage   slogrecord.Usage
+	err     error
 }
 
 // New constructs a sampling handler.
@@ -89,7 +98,11 @@ func Deterministic(rate float64, key KeyFunc) (Sampler, error) {
 		if rate == 1 {
 			return true
 		}
-		hash := fnv64a(key(ctx, record))
+		identity := key(ctx, record)
+		if len(identity) > MaxKeyBytes {
+			return false
+		}
+		hash := fnv64a(identity)
 
 		return float64(hash)/float64(math.MaxUint64) < rate
 	}, nil
@@ -97,13 +110,20 @@ func Deterministic(rate float64, key KeyFunc) (Sampler, error) {
 
 // Enabled delegates level decisions to the downstream handler.
 func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
-	return handler.next.Enabled(ctx, level)
+	return handler.err == nil && handler.next.Enabled(ctx, level)
 }
 
 // Handle samples an independent record clone before optionally delivering the
 // original record downstream.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
-	if !handler.sampler(ctx, cloneRecord(record)) {
+	if handler.err != nil {
+		return handler.err
+	}
+	cloned, err := slogrecord.CloneRawWithUsage(record, handler.usage)
+	if err != nil {
+		return err
+	}
+	if !handler.sampler(ctx, cloned) {
 		handler.stats.dropped.Add(1)
 		return nil
 	}
@@ -114,19 +134,41 @@ func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 // WithAttrs returns a derived handler that shares the sampler and counters.
 func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	if handler.err != nil {
+		return &Handler{next: handler.next, sampler: handler.sampler, stats: handler.stats, usage: handler.usage, err: handler.err}
+	}
+	if len(attrs) == 0 {
+		return handler
+	}
+	owned, usage, err := slogrecord.CloneRawAttrsWithUsage(attrs, handler.usage)
+	if err != nil {
+		return &Handler{next: handler.next, sampler: handler.sampler, stats: handler.stats, usage: handler.usage, err: err}
+	}
 	return &Handler{
-		next:    handler.next.WithAttrs(attrs),
+		next:    handler.next.WithAttrs(owned),
 		sampler: handler.sampler,
 		stats:   handler.stats,
+		usage:   usage,
 	}
 }
 
 // WithGroup returns a derived handler that shares the sampler and counters.
 func (handler *Handler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return handler
+	}
+	if handler.err != nil {
+		return &Handler{next: handler.next, sampler: handler.sampler, stats: handler.stats, usage: handler.usage, err: handler.err}
+	}
+	usage, err := handler.usage.WithGroup(name)
+	if err != nil {
+		return &Handler{next: handler.next, sampler: handler.sampler, stats: handler.stats, usage: handler.usage, err: err}
+	}
 	return &Handler{
 		next:    handler.next.WithGroup(name),
 		sampler: handler.sampler,
 		stats:   handler.stats,
+		usage:   usage,
 	}
 }
 
@@ -155,31 +197,4 @@ func fnv64a(value string) uint64 {
 	hash ^= hash >> 33
 
 	return hash
-}
-
-func cloneRecord(record slog.Record) slog.Record {
-	cloned := slog.NewRecord(record.Time, record.Level, record.Message, record.PC)
-	record.Attrs(func(attr slog.Attr) bool {
-		cloned.AddAttrs(cloneAttr(attr))
-		return true
-	})
-
-	return cloned
-}
-
-func cloneAttrs(attrs []slog.Attr) []slog.Attr {
-	cloned := make([]slog.Attr, len(attrs))
-	for index, attr := range attrs {
-		cloned[index] = cloneAttr(attr)
-	}
-
-	return cloned
-}
-
-func cloneAttr(attr slog.Attr) slog.Attr {
-	if attr.Value.Kind() != slog.KindGroup {
-		return attr
-	}
-
-	return slog.Attr{Key: attr.Key, Value: slog.GroupValue(cloneAttrs(attr.Value.Group())...)}
 }
