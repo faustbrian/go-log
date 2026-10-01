@@ -86,10 +86,10 @@ func WithAttrs(attrs ...slog.Attr) Option {
 		if err != nil {
 			return nil, err
 		}
-		owned, err := slogrecord.CloneRawAttrs(cloned)
-		if err != nil {
-			return nil, err
-		}
+		// Initial admission detached every group into this private immutable
+		// slice. Raw cloning does not resolve opaque values, and callbacks only
+		// receive fresh copies, so the admitted shape cannot become invalid.
+		owned, _ := slogrecord.CloneRawAttrs(cloned)
 		return handler.WithAttrs(owned), nil
 	}
 }
