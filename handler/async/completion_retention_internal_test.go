@@ -81,6 +81,71 @@ func TestSyncFallbackCoalescesCompletionBehindHeldFallback(t *testing.T) {
 	}
 }
 
+func TestSyncFallbackPreservesSeparateCompletionIntervals(t *testing.T) {
+	sink := &splitCompletionSink{completionSink: newCompletionSink(false), secondStarted: make(chan struct{}), secondRelease: make(chan struct{})}
+	handler, err := New(sink, Options{Capacity: 1, Overflow: SyncFallback, AdmissionTimeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		sink.releaseWorker()
+		sink.releaseSecond()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := handler.Shutdown(ctx); err != nil {
+			t.Errorf("Shutdown cleanup: %v", err)
+		}
+	})
+	submitCompletionRecord(t, handler, "1")
+	awaitCompletionSignal(t, sink.workerStarted)
+	submitCompletionRecord(t, handler, "2")
+	submitCompletionRecord(t, handler, "3")
+	sink.releaseWorker()
+	awaitCompletionSignal(t, sink.secondStarted)
+	submitCompletionRecord(t, handler, "4")
+	submitCompletionRecord(t, handler, "5")
+
+	handler.runtime.completeMu.Lock()
+	watermark := handler.runtime.watermark
+	intervals := append([]completionInterval(nil), handler.runtime.completed...)
+	handler.runtime.completeMu.Unlock()
+	if watermark != 1 || !reflect.DeepEqual(intervals, []completionInterval{{first: 3, last: 3}, {first: 5, last: 5}}) {
+		t.Errorf("completion watermark=%d intervals=%v, want 1/[3..3 5..5]", watermark, intervals)
+	}
+	assertCompletionFlushBlocked(t, handler)
+	if got := handler.Stats(); got.Enqueued != 3 || got.Delivered != 3 || got.SynchronousFallback != 2 || got.Rejected != 0 || got.Lost() != 0 {
+		t.Errorf("held accounting = %#v", got)
+	}
+	sink.releaseSecond()
+	flushCompletion(t, handler)
+	assertCompletionRetention(t, handler, 5, 0)
+	if got := sink.messages(); !reflect.DeepEqual(got, []string{"3", "1", "5", "2", "4"}) {
+		t.Errorf("delivery order = %v, want [3 1 5 2 4]", got)
+	}
+	if got := handler.Stats(); got.Enqueued != 3 || got.Delivered != 5 || got.SynchronousFallback != 2 || got.Rejected != 0 || got.Lost() != 0 {
+		t.Errorf("drained accounting = %#v", got)
+	}
+}
+
+type splitCompletionSink struct {
+	*completionSink
+	secondStarted chan struct{}
+	secondRelease chan struct{}
+	secondOnce    sync.Once
+}
+
+func (sink *splitCompletionSink) releaseSecond() {
+	sink.secondOnce.Do(func() { close(sink.secondRelease) })
+}
+
+func (sink *splitCompletionSink) Handle(ctx context.Context, record slog.Record) error {
+	if record.Message == "2" {
+		close(sink.secondStarted)
+		<-sink.secondRelease
+	}
+	return sink.completionSink.Handle(ctx, record)
+}
+
 func completionHandler(t *testing.T, sink *completionSink, policy OverflowPolicy) *Handler {
 	t.Helper()
 	handler, err := New(sink, Options{Capacity: 1, Overflow: policy, AdmissionTimeout: time.Second})
