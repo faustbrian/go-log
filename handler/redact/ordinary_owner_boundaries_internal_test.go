@@ -57,6 +57,7 @@ func TestOrdinaryOwnerStructuralBoundaries(t *testing.T) {
 			{"scalar beyond count", slog.Int("field", 7), slogrecord.MaxRecordAttributes, 1, slogrecord.MaxRecordAttributes, true},
 			{"group exact count", slog.Group("group", slog.Int("field", 7)), slogrecord.MaxRecordAttributes - 2, 1, slogrecord.MaxRecordAttributes, false},
 			{"group child beyond count", slog.Group("group", slog.Int("field", 7)), slogrecord.MaxRecordAttributes - 1, 1, slogrecord.MaxRecordAttributes, true},
+			{"two children exceed remaining count before child work", slog.Group("group", slog.Int("first", 7), slog.Int("second", 8)), slogrecord.MaxRecordAttributes - 2, 1, slogrecord.MaxRecordAttributes - 1, true},
 			{"scalar exact depth", slog.Int("field", 7), 0, slogrecord.MaxRecordDepth, 1, false},
 			{"scalar beyond depth", slog.Int("field", 7), 0, slogrecord.MaxRecordDepth + 1, 0, true},
 			{"child exact depth", slog.Group("group", slog.Int("field", 7)), 0, slogrecord.MaxRecordDepth - 1, 2, false},
