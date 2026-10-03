@@ -372,15 +372,7 @@ func (runtime *runtime) enqueueSyncFallback(ctx context.Context, next slog.Handl
 	default:
 		select {
 		case runtime.fallbackSlot <- struct{}{}:
-			select {
-			case <-runtime.closing:
-				<-runtime.fallbackSlot
-				runtime.nextSeq--
-				runtime.unlockSubmission()
-				runtime.stats.rejected.Add(1)
-				return ErrClosed
-			default:
-			}
+			return runtime.deliverReservedFallback(delivery)
 		case <-runtime.closing:
 			runtime.nextSeq--
 			runtime.unlockSubmission()
@@ -392,24 +384,39 @@ func (runtime *runtime) enqueueSyncFallback(ctx context.Context, next slog.Handl
 			runtime.stats.rejected.Add(1)
 			return ErrAdmissionTimeout
 		}
-		runtime.fallbackMu.Lock()
-		runtime.fallbacks++
-		runtime.fallbackMu.Unlock()
-		runtime.unlockSubmission()
-		runtime.stats.synchronousFallback.Add(1)
-		defer func() {
-			runtime.markComplete(delivery.sequence)
-			runtime.finishFallback()
-			<-runtime.fallbackSlot
-		}()
-		err := next.Handle(ctx, record)
-		if err != nil {
-			runtime.stats.failed.Add(1)
-			return err
-		}
-		runtime.stats.delivered.Add(1)
-		return nil
 	}
+}
+
+// deliverReservedFallback requires submission ownership, an allocated delivery
+// and a reserved fallback slot. Registration must precede submission release so
+// shutdown cannot finish before the accepted fallback becomes visible. The slot
+// is released on rejection or after downstream delivery completes.
+func (runtime *runtime) deliverReservedFallback(delivery delivery) error {
+	select {
+	case <-runtime.closing:
+		<-runtime.fallbackSlot
+		runtime.nextSeq--
+		runtime.unlockSubmission()
+		runtime.stats.rejected.Add(1)
+		return ErrClosed
+	default:
+	}
+	runtime.fallbackMu.Lock()
+	runtime.fallbacks++
+	runtime.fallbackMu.Unlock()
+	runtime.unlockSubmission()
+	runtime.stats.synchronousFallback.Add(1)
+	defer func() {
+		runtime.markComplete(delivery.sequence)
+		runtime.finishFallback()
+		<-runtime.fallbackSlot
+	}()
+	if err := delivery.next.Handle(delivery.ctx, delivery.record); err != nil {
+		runtime.stats.failed.Add(1)
+		return err
+	}
+	runtime.stats.delivered.Add(1)
+	return nil
 }
 
 func (runtime *runtime) newDelivery(ctx context.Context, next slog.Handler, record slog.Record) delivery {
