@@ -106,15 +106,25 @@ func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 	routes := make([]Route, len(handler.routes))
 	for index, route := range handler.routes {
-		routeAttrs, err := slogrecord.CloneRawAttrs(owned)
-		if err != nil {
-			return &Handler{routes: append([]Route(nil), handler.routes...), usage: handler.usage, err: err}
-		}
-		route.Handler = route.Handler.WithAttrs(routeAttrs)
+		route.Handler = route.Handler.WithAttrs(copyValidatedAttrs(owned))
 		routes[index] = route
 	}
 
 	return &Handler{routes: routes, usage: usage}
+}
+
+// copyValidatedAttrs only receives the bounded, deeply owned raw tree produced
+// by CloneRawAttrsWithUsage. Each route needs independent group storage, not a
+// second admission decision or evaluation of caller LogValuer values.
+func copyValidatedAttrs(attrs []slog.Attr) []slog.Attr {
+	cloned := make([]slog.Attr, len(attrs))
+	for index, attr := range attrs {
+		if attr.Value.Kind() == slog.KindGroup {
+			attr.Value = slog.GroupValue(copyValidatedAttrs(attr.Value.Group())...)
+		}
+		cloned[index] = attr
+	}
+	return cloned
 }
 
 // WithGroup returns a derived stack whose routes qualify subsequent attrs
