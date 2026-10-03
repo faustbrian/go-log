@@ -44,8 +44,8 @@ The secure defaults documented below belong to the pending v2 release.
 replace free-form messages without evaluating discarded values. Time and level
 remain. Use `TrustedNew`, `TrustedJSON`, or `TrustedText` only for explicitly
 classified, bounded application data; trusted messages are limited to 1,024
-bytes. Custom options, prebound handlers, output callbacks, and I/O remain
-application-owned collaborators.
+bytes. Custom options, handlers with previously bound attributes, output
+callbacks, and I/O remain application-owned collaborators.
 
 ## Next v2 quick start
 

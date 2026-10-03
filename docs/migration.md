@@ -65,8 +65,8 @@ do not use it for formatted or user-controlled messages.
 
 Set `PreserveTrustedAttributes` only after classifying all attribute names and
 unmatched values. Custom options must retain the incoming privacy owner;
-supplied handlers may already contain prebound data that an outer wrapper
-cannot erase. Root `WithAttrs` rejects excessive structure before downstream
+supplied handlers may already contain previously bound data that an outer
+wrapper cannot erase. Root `WithAttrs` rejects excessive structure before downstream
 derivation and gives each invocation an independent group copy.
 
 Do not wrap the logger in an application-wide interface merely for this
