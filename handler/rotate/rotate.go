@@ -133,8 +133,7 @@ func (writer *Writer) Write(p []byte) (int, error) {
 }
 
 func wouldExceedLimit(size int64, writeBytes int, maximum int64) bool {
-	return size > 0 && writeBytes > 0 &&
-		(size > maximum || int64(writeBytes) > maximum-size)
+	return size > 0 && writeBytes > 0 && int64(writeBytes) > maximum-size
 }
 
 // Sync commits the active file's contents to stable storage.
@@ -270,8 +269,8 @@ func (writer *Writer) validateRotationPaths() error {
 	if !sameFile(active, opened) {
 		return ErrUnsafePath
 	}
-	for index := 1; index <= writer.options.Backups; index++ {
-		if _, err := regularPathInfo(backupName(writer.options.Path, index), true); err != nil {
+	for offset := range writer.options.Backups {
+		if _, err := regularPathInfo(backupName(writer.options.Path, offset+1), true); err != nil {
 			return err
 		}
 	}

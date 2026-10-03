@@ -245,6 +245,16 @@ func TestOversizedWriteRemainsAtomicAndRotatesBeforeNextWrite(t *testing.T) {
 	if _, err := writer.Write([]byte("oversized")); err != nil {
 		t.Fatalf("Write(oversized) error = %v", err)
 	}
+	if n, err := writer.Write(nil); n != 0 || err != nil {
+		t.Fatalf("Write(empty) = %d, %v", n, err)
+	}
+	if got := writer.Stats(); got.Bytes != int64(len("oversized")) || got.Rotations != 0 {
+		t.Fatalf("Stats() after empty write = %+v", got)
+	}
+	assertFile(t, path, "oversized")
+	if _, err := os.Stat(path + ".1"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("backup after empty write: %v", err)
+	}
 	if _, err := writer.Write([]byte("x")); err != nil {
 		t.Fatalf("Write(x) error = %v", err)
 	}
@@ -291,6 +301,48 @@ func TestRotationDoesNotProbeBackupsOutsideRetentionWindow(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestOrdinaryDirectoryPathsRejectWithoutFileEffects(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	activeDirectory := filepath.Join(root, "active-directory")
+	if err := os.Mkdir(activeDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(activeDirectory, "ordinary")
+	if err := os.WriteFile(marker, []byte("unchanged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if writer, err := New(Options{Path: activeDirectory, MaxBytes: 1, Backups: 1}); writer != nil || !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("New(directory) = %v, %v", writer, err)
+	}
+	assertFile(t, marker, "unchanged")
+	path := filepath.Join(root, "app.log")
+	writer := mustNewWriter(t, Options{Path: path, MaxBytes: 1, Backups: 1})
+	t.Cleanup(func() {
+		if err := writer.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := writer.Write([]byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path+".1", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	backupMarker := filepath.Join(path+".1", "ordinary")
+	if err := os.WriteFile(backupMarker, []byte("unchanged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := writer.Write([]byte("y")); n != 0 || !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("Write(directory backup) = %d, %v", n, err)
+	}
+	if got := writer.Stats(); got.Bytes != 1 || got.Rotations != 0 {
+		t.Fatalf("failed rotation Stats() = %+v", got)
+	}
+	assertFile(t, path, "x")
+	assertFile(t, backupMarker, "unchanged")
 }
 
 func TestConcurrentWritesRemainWhole(t *testing.T) {
