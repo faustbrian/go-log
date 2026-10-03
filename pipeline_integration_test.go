@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/async"
-	"github.com/faustbrian/go-log/handler/redact"
-	"github.com/faustbrian/go-log/handler/sample"
-	"github.com/faustbrian/go-log/handler/stack"
-	logotel "github.com/faustbrian/go-log/otel"
+	"github.com/faustbrian/go-log/v2/handler/async"
+	"github.com/faustbrian/go-log/v2/handler/redact"
+	"github.com/faustbrian/go-log/v2/handler/sample"
+	"github.com/faustbrian/go-log/v2/handler/stack"
+	logotel "github.com/faustbrian/go-log/v2/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -36,7 +36,7 @@ func TestStandardLoggerInteroperatesWithCompletePipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stack.New() error = %v", err)
 	}
-	queued, err := async.New(stacked, async.Options{Capacity: 8, Overflow: async.Block})
+	queued, err := async.New(stacked, async.Options{Capacity: 8, Overflow: async.Block, AdmissionTimeout: time.Second})
 	if err != nil {
 		t.Fatalf("async.New() error = %v", err)
 	}
@@ -48,7 +48,10 @@ func TestStandardLoggerInteroperatesWithCompletePipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sample.New() error = %v", err)
 	}
-	safe, err := redact.New(sampled, &redact.Options{Rules: []redact.Rule{redact.Keys("token")}})
+	safe, err := redact.New(sampled, &redact.Options{PreserveTrustedAttributes: true,
+		Rules:                  []redact.Rule{redact.Keys("token")},
+		PreserveTrustedMessage: true,
+	})
 	if err != nil {
 		t.Fatalf("redact.New() error = %v", err)
 	}

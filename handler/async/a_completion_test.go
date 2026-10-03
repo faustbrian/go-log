@@ -7,8 +7,7 @@ import (
 
 func TestMarkCompleteCompactsOutOfOrderAndDuplicateCompletions(t *testing.T) {
 	runtime := &runtime{
-		completed: make(map[uint64]struct{}),
-		progress:  make(chan struct{}),
+		progress: make(chan struct{}),
 	}
 
 	runtime.markComplete(2)

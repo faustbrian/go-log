@@ -19,7 +19,9 @@ The package does not define a proprietary logger interface, replace the
 standard JSON or text encoders, initialize OpenTelemetry, or ship direct vendor
 drivers.
 
-The module is a stable v1 public library and requires Go 1.27.0 or newer.
+The latest published stable module is v1.0.0. This source tree prepares the
+next v2 module and requires Go 1.27.0 or newer; v2 is not installable until a
+v2 tag is published.
 
 Shared construction, ownership, lifecycle, and composition expectations are in
 the versioned [Golib ecosystem index](https://github.com/faustbrian/go-library-tools/blob/v1.4.0/docs/ecosystem/README.md)
@@ -30,13 +32,22 @@ and [observability family guidance](https://github.com/faustbrian/go-library-too
 - Go 1.27.0 or newer.
 - OpenTelemetry API v1.41 when importing the optional `otel` bridge.
 
-## Install
+## Install released v1
 
 ```sh
 go get github.com/faustbrian/go-log@v1
 ```
 
-## Quick start
+The secure defaults documented below belong to the pending v2 release.
+
+`New`, `JSON`, and `Text` omit caller attributes and group identifiers and
+replace free-form messages without evaluating discarded values. Time and level
+remain. Use `TrustedNew`, `TrustedJSON`, or `TrustedText` only for explicitly
+classified, bounded application data; trusted messages are limited to 1,024
+bytes. Custom options, handlers with previously bound attributes, output
+callbacks, and I/O remain application-owned collaborators.
+
+## Next v2 quick start
 
 ```go
 package main
@@ -45,7 +56,7 @@ import (
 	"log/slog"
 	"os"
 
-	log "github.com/faustbrian/go-log"
+	log "github.com/faustbrian/go-log/v2"
 )
 
 func main() {
@@ -128,25 +139,44 @@ dropped records.
 
 `handler/async` uses a fixed-capacity queue and one worker. Its policies are:
 
-- `Block`: wait for space without treating context cancellation as record
-  cancellation, as required by `slog.Handler`.
-- `DropNewest`: reject the current record with `async.ErrDropped`.
+- `DropNewest` (default): reject the current record with `async.ErrDropped`
+  when the queue is full.
+- `Block`: wait for admission up to a positive `AdmissionTimeout`, without
+  treating call-site context cancellation as record cancellation.
 - `DropOldest`: evict the oldest queued record and accept the current record.
-- `SyncFallback`: deliver the current record on the caller goroutine.
+- `SyncFallback`: deliver the current record on the caller goroutine, with at
+  most one fallback inside the downstream handler at a time; a positive
+  `AdmissionTimeout` bounds waiting for that slot, not the delivery itself.
+
+Admission expiry returns `async.ErrAdmissionTimeout` before acceptance and
+increments `Rejected`. Queue capacity counts records, not bytes; downstream
+callbacks and I/O need application-owned bounds.
 
 `Flush` waits for all records accepted before its call. `Shutdown` stops new
-acceptance, drains in the background, is repeatable, and honors each caller's
-deadline. `Stats` exposes enqueued, delivered, failed, dropped, fallback, and
-rejected counts. Applications must call `Shutdown` during graceful shutdown.
+acceptance, cancels cooperative downstream work when its context expires, is
+repeatable, and honors each caller's deadline. `Stats` exposes enqueued,
+delivered, failed, dropped, fallback, and rejected counts. Applications must
+call `Shutdown` during graceful shutdown.
 
 ## Security defaults
 
+- Root constructors and redaction omit all caller attributes and group names
+  by default; discarded `LogValuer` values are not evaluated.
+- Selective attribute redaction requires `PreserveTrustedAttributes: true`;
+  this trusts attribute names, group identifiers, and unmatched payloads.
 - Redaction is structural; it never searches rendered strings.
 - Matching keys are case-insensitive and paths are exact structural paths.
 - Matched `LogValuer` values are replaced without being evaluated.
-- Rotated files default to mode `0600` and enforce the configured mode.
-- Messages are not redacted. Never place secrets or untrusted multiline data
-  in log messages; use attributes and configure redaction rules.
+- Rotated files default to mode `0600`, enforce the configured mode, and reject
+  symbolic-link or non-regular active and backup paths.
+- Messages are replaced with `[REDACTED]` by default. Set
+  `PreserveTrustedMessage` only for bounded, fixed application messages;
+  omit private data or classify it before explicit trusted-attribute opt-in.
+- Structural processing rejects cumulative bound and record structure above
+  1,024 attributes or 32 nested levels with `log.ErrRecordLimit`.
+- Correlation attributes consume the same total budget. Deterministic sampling
+  drops keys above `sample.MaxKeyBytes` (1,024 bytes) at fractional rates before
+  hashing; applications own key callback execution and allocation.
 
 See [adoption](docs/adoption.md), [recipes](docs/recipes.md),
 [operations](docs/operations.md), and [architecture](docs/architecture.md) for

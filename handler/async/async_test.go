@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/async"
-	"github.com/faustbrian/go-log/handler/capture"
+	logpkg "github.com/faustbrian/go-log/v2"
+	"github.com/faustbrian/go-log/v2/handler/async"
+	"github.com/faustbrian/go-log/v2/handler/capture"
 )
 
 func TestNewValidatesOptions(t *testing.T) {
@@ -58,11 +59,141 @@ func TestNewValidatesOptions(t *testing.T) {
 	}
 }
 
+func TestHandleRejectsNestedAttributesBeyondTheSafeDepth(t *testing.T) {
+	t.Parallel()
+
+	handler := mustNew(t, capture.New(), async.Options{Capacity: 1})
+	record := newRecord("nested")
+	attr := slog.String("value", "safe")
+	for depth := 0; depth < 64; depth++ {
+		attr = slog.Group("nested", attr)
+	}
+	record.AddAttrs(attr)
+
+	if err := handler.Handle(context.Background(), record); err == nil {
+		t.Fatal("Handle() error = nil, want bounded-attribute rejection")
+	}
+	shutdown(t, handler)
+}
+
+func TestWithAttrsLimitFailureRemainsStickyAcrossDerivation(t *testing.T) {
+	t.Parallel()
+
+	handler := mustNew(t, capture.New(), async.Options{Capacity: 1})
+	attrs := make([]slog.Attr, logpkg.MaxRecordAttributes+1)
+	for index := range attrs {
+		attrs[index] = slog.Int("value", index)
+	}
+	derived := handler.WithAttrs(attrs).WithAttrs([]slog.Attr{slog.String("safe", "value")})
+
+	if err := derived.Handle(context.Background(), newRecord("message")); !errors.Is(err, logpkg.ErrRecordLimit) {
+		t.Fatalf("derived Handle() error = %v, want ErrRecordLimit", err)
+	}
+	shutdown(t, handler)
+}
+
+func TestShutdownCancelsBlockedDownstreamDelivery(t *testing.T) {
+	t.Parallel()
+
+	sink := newCancellationHandler()
+	handler := mustNew(t, sink, async.Options{Capacity: 1})
+	handle(t, handler, "blocked")
+	<-sink.started
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	if err := handler.Shutdown(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Shutdown() error = %v, want deadline exceeded", err)
+	}
+	select {
+	case <-sink.finished:
+	case <-time.After(time.Second):
+		t.Fatal("downstream Handle did not observe shutdown cancellation")
+	}
+}
+
+func TestShutdownCancelsSynchronousFallbackDelivery(t *testing.T) {
+	t.Parallel()
+
+	sink := newMultiCancellationHandler()
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.SyncFallback, AdmissionTimeout: time.Second})
+	handle(t, handler, "worker")
+	if got := <-sink.started; got != "worker" {
+		t.Fatalf("first started message = %q, want worker", got)
+	}
+	handle(t, handler, "queued")
+	result := make(chan error, 1)
+	go func() {
+		result <- handler.Handle(context.Background(), newRecord("fallback"))
+	}()
+	if got := <-sink.started; got != "fallback" {
+		t.Fatalf("second started message = %q, want fallback", got)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := handler.Shutdown(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Shutdown() error = %v, want deadline exceeded", err)
+	}
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("fallback Handle() error = %v, want canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("synchronous fallback did not observe shutdown cancellation")
+	}
+
+	shutdown(t, handler)
+}
+
+func TestSyncFallbackBoundsDownstreamConcurrency(t *testing.T) {
+	t.Parallel()
+
+	sink := newMultiCancellationHandler()
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.SyncFallback, AdmissionTimeout: time.Second})
+	handle(t, handler, "worker")
+	if got := <-sink.started; got != "worker" {
+		t.Fatalf("first started message = %q, want worker", got)
+	}
+	handle(t, handler, "queued")
+
+	results := make(chan error, 2)
+	go func() { results <- handler.Handle(context.Background(), newRecord("fallback-1")) }()
+	if got := <-sink.started; got != "fallback-1" {
+		t.Fatalf("second started message = %q, want fallback-1", got)
+	}
+	go func() { results <- handler.Handle(context.Background(), newRecord("fallback-2")) }()
+	startedConcurrently := false
+	select {
+	case <-sink.started:
+		startedConcurrently = true
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := handler.Shutdown(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Shutdown() error = %v, want deadline exceeded", err)
+	}
+	for range 2 {
+		select {
+		case <-results:
+		case <-time.After(time.Second):
+			t.Fatal("fallback Handle did not finish after shutdown cancellation")
+		}
+	}
+	shutdown(t, handler)
+	if startedConcurrently {
+		t.Fatal("multiple synchronous fallbacks entered the downstream handler concurrently")
+	}
+}
+
 func TestBlockWaitsForCapacityAndIgnoresCancellation(t *testing.T) {
 	t.Parallel()
 
 	sink := newControlledHandler()
-	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block})
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block, AdmissionTimeout: time.Second})
 	t.Cleanup(func() { shutdown(t, handler) })
 
 	handle(t, handler, "block")
@@ -102,7 +233,7 @@ func TestDeliveryContextPreservesValuesWithoutCancellation(t *testing.T) {
 	t.Parallel()
 
 	sink := newControlledHandler()
-	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block})
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block, AdmissionTimeout: time.Second})
 	t.Cleanup(func() { shutdown(t, handler) })
 	handle(t, handler, "block")
 	<-sink.firstStarted
@@ -175,7 +306,7 @@ func TestSynchronousFallbackDeliversWhenQueueIsFull(t *testing.T) {
 	t.Parallel()
 
 	sink := newControlledHandler()
-	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.SyncFallback})
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.SyncFallback, AdmissionTimeout: time.Second})
 	t.Cleanup(func() { shutdown(t, handler) })
 
 	handle(t, handler, "block")
@@ -198,7 +329,7 @@ func TestFlushHonorsDeadlineAndThenCompletes(t *testing.T) {
 	t.Parallel()
 
 	sink := newControlledHandler()
-	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block})
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block, AdmissionTimeout: time.Second})
 	t.Cleanup(func() { shutdown(t, handler) })
 	handle(t, handler, "block")
 	<-sink.firstStarted
@@ -212,11 +343,42 @@ func TestFlushHonorsDeadlineAndThenCompletes(t *testing.T) {
 	flush(t, handler)
 }
 
+func TestFlushWaitsForAcceptedSynchronousFallback(t *testing.T) {
+	t.Parallel()
+
+	sink := newFlushFallbackHandler()
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.SyncFallback, AdmissionTimeout: time.Second})
+	t.Cleanup(func() {
+		closeOnce(sink.releaseWorker)
+		closeOnce(sink.releaseFallback)
+		shutdown(t, handler)
+	})
+	handle(t, handler, "worker")
+	<-sink.workerStarted
+	handle(t, handler, "queued")
+
+	fallbackResult := make(chan error, 1)
+	go func() { fallbackResult <- handler.Handle(context.Background(), newRecord("fallback")) }()
+	<-sink.fallbackStarted
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := handler.Flush(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Flush() error = %v, want deadline exceeded while fallback is active", err)
+	}
+	close(sink.releaseFallback)
+	if err := <-fallbackResult; err != nil {
+		t.Fatalf("fallback Handle() error = %v", err)
+	}
+	close(sink.releaseWorker)
+	flush(t, handler)
+}
+
 func TestShutdownIsDeadlineAwareRepeatableAndClosesHandler(t *testing.T) {
 	t.Parallel()
 
 	sink := newControlledHandler()
-	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block})
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block, AdmissionTimeout: time.Second})
 	handle(t, handler, "block")
 	<-sink.firstStarted
 
@@ -243,7 +405,7 @@ func TestRecordsAndLogValuesAreFrozenBeforeRetention(t *testing.T) {
 	t.Parallel()
 
 	sink := newControlledHandler()
-	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block})
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.Block, AdmissionTimeout: time.Second})
 	t.Cleanup(func() { shutdown(t, handler) })
 	handle(t, handler, "block")
 	<-sink.firstStarted
@@ -278,7 +440,7 @@ func TestDeliveryErrorsAreCountedAndReportedWithoutStoppingWorker(t *testing.T) 
 	var callbacks atomic.Uint64
 	handler := mustNew(t, sink, async.Options{
 		Capacity: 2,
-		Overflow: async.Block,
+		Overflow: async.Block, AdmissionTimeout: time.Second,
 		OnError: func(error) {
 			callbacks.Add(1)
 			panic("callback panic must not stop worker")
@@ -300,7 +462,7 @@ func TestDeliveryErrorsAreCountedAndReportedWithoutStoppingWorker(t *testing.T) 
 func TestDeliveryErrorWithoutCallbackIsStillCounted(t *testing.T) {
 	t.Parallel()
 
-	handler := mustNew(t, &failingHandler{}, async.Options{Capacity: 1, Overflow: async.Block})
+	handler := mustNew(t, &failingHandler{}, async.Options{Capacity: 1, Overflow: async.Block, AdmissionTimeout: time.Second})
 	handle(t, handler, "failed")
 	flush(t, handler)
 	shutdown(t, handler)
@@ -316,7 +478,7 @@ func TestFallbackReturnsDeliveryError(t *testing.T) {
 	want := errors.New("fallback failed")
 	sink := newControlledHandler()
 	sink.errFor = map[string]error{"fallback": want}
-	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.SyncFallback})
+	handler := mustNew(t, sink, async.Options{Capacity: 1, Overflow: async.SyncFallback, AdmissionTimeout: time.Second})
 	t.Cleanup(func() { closeOnce(sink.releaseFirst); shutdown(t, handler) })
 	handle(t, handler, "block")
 	<-sink.firstStarted
@@ -334,7 +496,7 @@ func TestDerivedHandlersPreserveAttrsAndGroups(t *testing.T) {
 	t.Parallel()
 
 	sink := capture.New()
-	handler := mustNew(t, sink, async.Options{Capacity: 2, Overflow: async.Block})
+	handler := mustNew(t, sink, async.Options{Capacity: 2, Overflow: async.Block, AdmissionTimeout: time.Second})
 	bound := &mutableValuer{value: "before"}
 	derived := handler.
 		WithAttrs([]slog.Attr{slog.String("service", "api"), slog.Any("bound", bound)}).
@@ -362,7 +524,7 @@ func TestDerivedHandlersPreserveAttrsAndGroups(t *testing.T) {
 func TestConcurrentHandlingFlushAndStatsAreRaceSafe(t *testing.T) {
 	t.Parallel()
 
-	handler := mustNew(t, capture.New(), async.Options{Capacity: 200, Overflow: async.Block})
+	handler := mustNew(t, capture.New(), async.Options{Capacity: 200, Overflow: async.Block, AdmissionTimeout: time.Second})
 	const count = 200
 	var wait sync.WaitGroup
 	for index := 0; index < count; index++ {
@@ -387,7 +549,7 @@ func TestConcurrentHandlingFlushAndStatsAreRaceSafe(t *testing.T) {
 func TestConcurrentShutdownCallersShareOneDrain(t *testing.T) {
 	t.Parallel()
 
-	handler := mustNew(t, capture.New(), async.Options{Capacity: 64, Overflow: async.Block})
+	handler := mustNew(t, capture.New(), async.Options{Capacity: 64, Overflow: async.Block, AdmissionTimeout: time.Second})
 	for index := 0; index < 50; index++ {
 		handle(t, handler, "message")
 	}
@@ -420,7 +582,7 @@ func TestConcurrentShutdownCallersShareOneDrain(t *testing.T) {
 func TestCompletedShutdownWinsCanceledCallerContext(t *testing.T) {
 	t.Parallel()
 
-	handler := mustNew(t, capture.New(), async.Options{Capacity: 1, Overflow: async.Block})
+	handler := mustNew(t, capture.New(), async.Options{Capacity: 1, Overflow: async.Block, AdmissionTimeout: time.Second})
 	shutdown(t, handler)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -480,6 +642,73 @@ type controlledHandler struct {
 	contextErrors map[string]error
 	contextValues map[string]any
 }
+
+type flushFallbackHandler struct {
+	workerStarted   chan struct{}
+	fallbackStarted chan struct{}
+	releaseWorker   chan struct{}
+	releaseFallback chan struct{}
+}
+
+func newFlushFallbackHandler() *flushFallbackHandler {
+	return &flushFallbackHandler{
+		workerStarted: make(chan struct{}), fallbackStarted: make(chan struct{}),
+		releaseWorker: make(chan struct{}), releaseFallback: make(chan struct{}),
+	}
+}
+
+func (handler *flushFallbackHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (handler *flushFallbackHandler) Handle(_ context.Context, record slog.Record) error {
+	switch record.Message {
+	case "worker":
+		close(handler.workerStarted)
+		<-handler.releaseWorker
+	case "fallback":
+		close(handler.fallbackStarted)
+		<-handler.releaseFallback
+	}
+	return nil
+}
+func (handler *flushFallbackHandler) WithAttrs([]slog.Attr) slog.Handler { return handler }
+func (handler *flushFallbackHandler) WithGroup(string) slog.Handler      { return handler }
+
+type cancellationHandler struct {
+	started  chan struct{}
+	finished chan struct{}
+}
+
+func newCancellationHandler() *cancellationHandler {
+	return &cancellationHandler{started: make(chan struct{}), finished: make(chan struct{})}
+}
+
+func (handler *cancellationHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (handler *cancellationHandler) Handle(ctx context.Context, _ slog.Record) error {
+	close(handler.started)
+	<-ctx.Done()
+	close(handler.finished)
+
+	return ctx.Err()
+}
+func (handler *cancellationHandler) WithAttrs([]slog.Attr) slog.Handler { return handler }
+func (handler *cancellationHandler) WithGroup(string) slog.Handler      { return handler }
+
+type multiCancellationHandler struct {
+	started chan string
+}
+
+func newMultiCancellationHandler() *multiCancellationHandler {
+	return &multiCancellationHandler{started: make(chan string, 3)}
+}
+
+func (handler *multiCancellationHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (handler *multiCancellationHandler) Handle(ctx context.Context, record slog.Record) error {
+	handler.started <- record.Message
+	<-ctx.Done()
+
+	return ctx.Err()
+}
+func (handler *multiCancellationHandler) WithAttrs([]slog.Attr) slog.Handler { return handler }
+func (handler *multiCancellationHandler) WithGroup(string) slog.Handler      { return handler }
 
 type deliveryContextKey struct{}
 

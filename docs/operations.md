@@ -7,14 +7,21 @@ secret policies must be chosen before deployment and observed continuously.
 
 | Policy | Caller effect | Loss | Appropriate use |
 | --- | --- | --- | --- |
-| `Block` | Waits for space; context cancellation is ignored | None after acceptance unless sink fails | Audit, billing, low-volume critical logs |
-| `DropNewest` | Immediate `ErrDropped` | Current record | Burst-tolerant diagnostics where older context matters |
+| `Block` | Waits for admission up to the configured timeout; call-site cancellation is ignored | None after acceptance unless sink fails | Critical logs with explicit rejection handling |
+| `DropNewest` (default) | Immediate `ErrDropped` when full | Current record | Burst-tolerant diagnostics where older context matters |
 | `DropOldest` | Current call succeeds | Oldest queued record | Fresh state is more valuable than stale diagnostics |
-| `SyncFallback` | Sink latency moves to caller | Only sink failure | Loss-intolerant streams that may tolerate latency spikes |
+| `SyncFallback` | Bounded admission wait, then sink latency moves to caller | Only sink failure after acceptance | Streams with bounded downstream I/O and explicit rejection handling |
 
-Queue capacity is a memory and burst-duration budget, not a throughput fix.
+Queue capacity bounds the number of waiting records, not their byte size or
+total process memory. It is a burst-duration budget, not a throughput fix.
 Measure sustained sink throughput before choosing it. Each queued record owns a
 frozen record copy and resolved attribute tree until delivery.
+
+`Block` and `SyncFallback` require a positive `AdmissionTimeout`. One admission
+deadline covers submission ownership and capacity or fallback-slot waiting;
+expiry returns `ErrAdmissionTimeout` before acceptance. It does not preempt
+record-resolution callbacks or an accepted downstream delivery. Bound those
+operations in application-owned handlers and transports.
 
 ## Loss accounting
 
@@ -26,7 +33,7 @@ service's metrics system. The counters are monotonic for the handler lifetime.
 - `Failed`: downstream handler errors.
 - `DroppedNewest` and `DroppedOldest`: policy losses.
 - `SynchronousFallback`: calls moved onto producer goroutines.
-- `Rejected`: records not accepted because shutdown began.
+- `Rejected`: records not accepted because shutdown began or admission timed out.
 - `Lost()`: failed plus both drop counters; rejected calls are excluded.
 
 Alert on any unexpected `Lost()` delta. Alert separately on sustained fallback
@@ -51,18 +58,22 @@ observe sink health out of band.
 
 ## Flush and shutdown
 
-`Flush(ctx)` waits for records accepted before its snapshot. A timeout stops
+`Flush(ctx)` bounds both obtaining its submission snapshot and waiting for
+records accepted before that snapshot. A timeout stops
 the caller's wait but does not cancel the worker or discard records.
 
 `Shutdown(ctx)` performs three actions:
 
 1. atomically stops new acceptance;
-2. starts one irreversible background drain;
-3. lets every caller wait on that same drain with its own context.
+2. closes the bounded queue and waits for its worker and synchronous fallback
+   calls;
+3. cancels the shared delivery context if a caller's deadline expires.
 
 If the first caller times out, later calls can continue waiting. A downstream
-handler that ignores context and blocks forever can prevent the background
-drain from finishing, but no `Shutdown` call waits beyond its own context.
+handler that ignores context and blocks forever can prevent completion, but no
+`Shutdown` call waits beyond its own context and the package does not create a
+detached goroutine to outlive the caller. `OnError` runs on the worker and must
+also return promptly; a blocking callback prevents further delivery and drain.
 
 Stop request servers, consumers, and periodic jobs before shutdown so they do
 not receive `async.ErrClosed`. Reserve part of the platform termination grace
@@ -82,19 +93,23 @@ passwords, tokens, credentials, connection strings, and vendor-specific secret
 names. Prefer broad key rules for secret categories and exact path rules when a
 key is only sensitive in a particular structure.
 
-Redaction covers attributes, including nested groups, duplicate keys, typed
-values, errors, URLs, headers, structs, and `LogValuer` implementations. It does
-not alter:
+Default root construction and redaction omit all caller attributes, including
+their keys and group names, and replace the complete message without resolving
+discarded values. Selective rules require `PreserveTrustedAttributes: true`;
+that opt-in trusts names and unmatched values, while matched nested/duplicate
+fields are replaced before resolution. Neither variant can alter:
 
-- record messages;
 - source file or function fields emitted by `slog`;
 - values rendered before they enter the handler;
-- data sent to a sink positioned before the redaction handler.
+- data sent to a sink positioned before the redaction handler;
+- data already bound into a supplied downstream handler, or injected by an
+  application-selected source, encoder, option, or callback collaborator.
 
-Treat messages as fixed event names. Normalize carriage returns and newlines in
-untrusted strings before assigning them to text-handler attributes if downstream
-line-oriented tools do not safely escape them. JSON handlers provide a stronger
-log-forging boundary.
+Opt into `PreserveTrustedMessage` only for fixed application event names; the
+opt-in rejects messages above 1,024 bytes. Normalize carriage returns and
+newlines in untrusted text-handler attributes if downstream line-oriented tools
+do not safely escape them. JSON handlers provide a stronger log-forging
+boundary.
 
 ## Sampling
 
@@ -104,11 +119,14 @@ transition records unless the owning policy explicitly permits it. Export
 
 Every-N sampling is process-local and restarts its sequence after restart.
 Deterministic sampling is stable for the same key and rate across processes,
-subject to this module's compatibility policy.
+subject to this module's compatibility policy. Fractional rates reject returned
+keys above `sample.MaxKeyBytes` (1,024 bytes) before hashing. Zero and one rates
+do not evaluate the key callback. Keep callback execution and allocation bounded.
 
 ## Local rotation
 
 `rotate.Writer` serializes concurrent writes and enforces file permissions.
+It rejects symbolic links and non-regular active or numbered backup paths.
 Rotation syncs and closes the active file, removes the oldest backup, shifts
 numbered backups, renames the active file, and opens a new active file.
 

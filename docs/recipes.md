@@ -1,7 +1,9 @@
 # Recipes
 
 All recipes use standard `slog.Handler` composition. Constructors return or
-accept standard handlers, and applications finish with `slog.New(handler)`.
+accept standard handlers. Use root `New` or default redaction for ordinary
+request-controlled data; direct `slog.New(handler)` and selective preservation
+examples below intentionally delegate classification to the application.
 
 ## Route errors separately
 
@@ -42,6 +44,8 @@ handler, err := stack.New(
 
 ```go
 safe, err := redact.New(next, &redact.Options{
+	PreserveTrustedAttributes: true,
+	PreserveTrustedMessage: true, // only fixed application event names
 	Rules: []redact.Rule{redact.Keys(
 		"api_key",
 		"authorization",
@@ -56,12 +60,15 @@ safe, err := redact.New(next, &redact.Options{
 ```
 
 Key matching is case-insensitive at every nesting depth. Duplicate keys are
-redacted independently. Matching occurs before `LogValuer` evaluation.
+redacted independently. Matching occurs before `LogValuer` evaluation. Omit
+`PreserveTrustedMessage` to replace every message with `[REDACTED]`; never opt
+in for formatted or user-controlled messages.
 
 ## Redact only an exact path
 
 ```go
 safe, err := redact.New(next, &redact.Options{
+	PreserveTrustedAttributes: true,
 	Rules: []redact.Rule{redact.Paths(
 		"request.credentials.password",
 		"response.headers.set-cookie",
@@ -77,6 +84,7 @@ not a substring search. Use `redact.Any` to combine key and path policies.
 ```go
 replacement := slog.BoolValue(true)
 safe, err := redact.New(next, &redact.Options{
+	PreserveTrustedAttributes: true,
 	Rules:       []redact.Rule{redact.Keys("secret")},
 	Replacement: &replacement,
 })
@@ -125,6 +133,7 @@ unless that behavior is intentional.
 queued, err := async.New(next, async.Options{
 	Capacity: 4096,
 	Overflow: async.Block,
+	AdmissionTimeout: time.Second,
 	OnError: func(err error) {
 		asyncDeliveryFailures.Add(context.Background(), 1)
 		_, _ = fmt.Fprintf(os.Stderr, "async log delivery: %v\n", err)
@@ -145,7 +154,7 @@ if err := queued.Flush(ctx); err != nil {
 }
 ```
 
-Flush snapshots accepted queue sequence under the submission lock and waits
+Flush snapshots accepted queue sequence under the cancelable submission gate and waits
 for those records. New submissions may continue.
 
 ## Capture and assert logs
@@ -200,6 +209,7 @@ stacked, _ := stack.New(stack.Route{Handler: json, MinLevel: slog.LevelInfo})
 queued, _ := async.New(stacked, async.Options{
 	Capacity: 4096,
 	Overflow: async.Block,
+	AdmissionTimeout: time.Second,
 })
 sampled, _ := sample.New(queued, samplingPolicy)
 safe, _ := redact.New(sampled, redactionOptions)

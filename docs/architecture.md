@@ -23,8 +23,8 @@ Every decorator implements all four `slog.Handler` methods:
   downstream errors according to its documented policy.
 - `WithAttrs` creates an independent derived handler and never mutates its
   parent.
-- `WithGroup` preserves standard group order and treats downstream behavior as
-  authoritative.
+- `WithGroup` preserves standard group order in data-preserving variants.
+  Default redaction validates/counts the group without forwarding its name.
 
 Stack clones a record for every sink. Async freezes metadata, the attribute
 slice, nested group slices, and resolved `LogValuer` values before queueing.
@@ -50,11 +50,11 @@ The application must call `Shutdown` and `Close`, respectively.
 | --- | --- |
 | Root constructor | Returns the first option error or `ErrNilHandler` |
 | Stack | Attempts every matching route and joins handler errors |
-| Redact | Resolves non-sensitive values safely; matched values are never evaluated |
+| Redact | Omits attributes/groups and replaces messages by default without evaluating discarded values; explicit trusted selective mode resolves only unmatched values |
 | Sample | A drop succeeds synchronously and increments `Dropped` |
 | Async queued delivery | Reports failures through `OnError` and `Stats` |
 | Async overflow | Follows the selected explicit policy |
-| Capture | Retains in memory and returns no delivery error |
+| Capture | Retains in memory and rejects records outside structural limits |
 | Rotate | Returns filesystem errors and attempts reopen after partial rotation |
 | OTel | Omits correlation for invalid contexts and delegates sink errors |
 
@@ -64,18 +64,23 @@ belong in the Collector or another dedicated agent.
 ## Async sequencing
 
 Each accepted queued record receives a monotonically increasing sequence under
-the submission lock. The worker completes records in queue order. Drop-oldest
-marks an evicted sequence complete. A bounded out-of-order set advances a
-completion watermark when gaps close.
+the single submission gate. The worker completes records in queue order. Drop-oldest
+marks an evicted sequence complete. Sorted, coalesced completed intervals
+advance a completion watermark when gaps close.
 
-Flush snapshots the latest accepted sequence under the same submission lock and
-waits for the watermark. Synchronous fallback completes before releasing the
-submission lock, so it needs no retained sequence. The completion set is
-bounded by queue capacity.
+Flush acquires the same submission gate with caller cancellation, snapshots the
+latest accepted sequence, and waits for the watermark. Synchronous fallback retains its accepted sequence
+until downstream delivery returns. A single fallback slot bounds concurrent
+downstream fallback work. Each retained interval requires an unresolved accepted
+gap before it. Retention is therefore bounded by unresolved accepted work:
+one worker, queue capacity, and at most one active fallback, not completed
+submission history. Continuous evictions or worker delivery behind a held
+record extend an interval rather than add history entries.
 
-Shutdown switches acceptance off atomically, waits for all accepted sequences,
-closes the queue, waits for the worker, and closes one shared completion signal.
-Caller contexts bound waiting, not background delivery.
+Shutdown switches acceptance off atomically, closes the queue, and waits for
+the worker plus synchronous fallbacks. Caller contexts bound waiting and cancel
+the shared delivery context; handlers that ignore cancellation remain outside
+the lifecycle guarantee.
 
 ## Stateful concurrency matrix
 
@@ -85,8 +90,8 @@ Caller contexts bound waiting, not background delivery.
 | Redact | None after construction | Immutable rule/options copies | Handler race suite |
 | Sample every-N | Seen counter | `atomic.Uint64` | Parallel exact-count test |
 | Sample stats | Kept/dropped | `atomic.Uint64` | Parallel Handle/Stats test |
-| Async queue | Channel and submission sequence | Channel plus submission mutex | Parallel Handle/Flush/Stats/Shutdown tests |
-| Async completion | Watermark and bounded gap set | Completion mutex and progress channel | Overflow and deadline tests |
+| Async queue | Channel and submission sequence | Channel plus one submission gate | Parallel Handle/Flush/Stats/Shutdown tests |
+| Async completion | Watermark and coalesced completed intervals | Completion mutex and progress channel | Held-worker/held-fallback retention, overflow and deadline tests |
 | Capture | Retained records | RW mutex | Parallel readers and writers |
 | Rotate | File, size, rotation count | One mutex | Concurrent whole-write test |
 
@@ -101,8 +106,8 @@ Matched secret values are replaced before resolution.
 
 Fuzz targets cover invalid UTF-8, zero values, nested and empty groups,
 duplicates, recursive values, panicking values, arbitrary rules, and typed
-values. Individual writes remain bounded by input size; async retention remains
-bounded by configured queue capacity.
+values. Structural walkers stop at 1,024 attributes or 32 group levels. Async
+retention remains bounded by configured queue capacity.
 
 ## OpenTelemetry boundary
 

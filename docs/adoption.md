@@ -1,6 +1,8 @@
 # Adoption guide
 
-This guide adopts `log` without changing application-facing logger types.
+This guide describes adoption of the pending v2 release. Keep consumers on
+published v1 until a v2 tag exists. The v2 migration does not change
+application-facing logger types.
 The boundary remains `*slog.Logger`, so packages that already use `log/slog`
 need no adapter.
 
@@ -20,6 +22,7 @@ json := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 })
 
 redacted, err := redact.New(json, &redact.Options{
+	PreserveTrustedAttributes: true,
 	Rules: []redact.Rule{redact.Keys(
 		"authorization",
 		"cookie",
@@ -34,6 +37,14 @@ if err != nil {
 
 logger := slog.New(redacted).With("service", "orders")
 ```
+
+This explicitly selective configuration trusts all unmatched attribute names,
+values and group identifiers. Use nil redaction options to omit all attributes
+and groups by default instead. Both configurations replace each record message.
+If every message at this
+boundary is a fixed application event name, explicitly set
+`PreserveTrustedMessage: true`; messages above 1,024 bytes are still rejected.
+Do not enable the option for formatted or user-controlled messages.
 
 No call site changes are required. Continue to use `InfoContext`, `LogAttrs`,
 `With`, and `WithGroup` from `log/slog`.
@@ -88,9 +99,11 @@ func (worker *Worker) Run(ctx context.Context, job Job) error {
 }
 ```
 
-Choose `Block` when losing audit or billing records is unacceptable and the
-worker may slow down. Choose `DropNewest` or `DropOldest` only for explicitly
-loss-tolerant diagnostic streams. Export `Stats().Lost()` to service metrics.
+Choose overflow policy explicitly for critical event classes. `Block` and
+`SyncFallback` require a positive `AdmissionTimeout` and handling admission
+rejection; they are not durable delivery guarantees. The default `DropNewest`
+and optional `DropOldest` are suitable only for loss-tolerant streams. Export
+both `Stats().Lost()` and `Stats().Rejected` to service metrics.
 
 ## Graceful shutdown
 

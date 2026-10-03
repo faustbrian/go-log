@@ -21,11 +21,14 @@ var (
 	ErrInvalidMode = errors.New("rotate: invalid file mode")
 	// ErrClosed is returned by Write and Sync after Close.
 	ErrClosed = errors.New("rotate: writer closed")
+	// ErrUnsafePath reports a symlink or non-regular active or backup path.
+	ErrUnsafePath = errors.New("rotate: unsafe file path")
 )
 
 // Options configures local file rotation.
 type Options struct {
-	// Path is the active log file.
+	// Path is the active log file. Symbolic links and non-regular active or
+	// numbered backup paths are rejected.
 	Path string
 	// MaxBytes is the active file size that triggers rotation before the next
 	// atomic write. A single larger write is never split.
@@ -53,10 +56,14 @@ type file interface {
 
 var (
 	openFile = func(name string, flag int, perm os.FileMode) (file, error) {
+		// #nosec G304 -- Path is explicit caller configuration; this writer
+		// rejects non-regular and symlink leaf paths before and after open.
 		return os.OpenFile(name, flag, perm)
 	}
 	renameFile = os.Rename
 	removeFile = os.Remove
+	lstatFile  = os.Lstat
+	sameFile   = os.SameFile
 )
 
 // Writer serializes writes and rotates files before a write would exceed the
@@ -110,7 +117,7 @@ func (writer *Writer) Write(p []byte) (int, error) {
 			return 0, err
 		}
 	}
-	if writer.size > 0 && writer.size+int64(len(p)) > writer.options.MaxBytes {
+	if wouldExceedLimit(writer.size, len(p), writer.options.MaxBytes) {
 		if err := writer.rotate(); err != nil {
 			return 0, err
 		}
@@ -123,6 +130,10 @@ func (writer *Writer) Write(p []byte) (int, error) {
 	}
 
 	return written, err
+}
+
+func wouldExceedLimit(size int64, writeBytes int, maximum int64) bool {
+	return size > 0 && writeBytes > 0 && int64(writeBytes) > maximum-size
 }
 
 // Sync commits the active file's contents to stable storage.
@@ -167,12 +178,18 @@ func (writer *Writer) Stats() Stats {
 }
 
 func (writer *Writer) rotate() error {
+	if err := writer.validateRotationPaths(); err != nil {
+		return err
+	}
 	closeErr := errors.Join(writer.file.Sync(), writer.file.Close())
 	writer.file = nil
 	if closeErr != nil {
 		return writer.recoverRotation(closeErr)
 	}
 	if writer.options.Backups == 0 {
+		if err := removeFile(writer.options.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return writer.recoverRotation(err)
+		}
 		if err := writer.open(true); err != nil {
 			return err
 		}
@@ -209,9 +226,13 @@ func (writer *Writer) recoverRotation(rotationErr error) error {
 }
 
 func (writer *Writer) open(truncate bool) error {
+	before, err := regularPathInfo(writer.options.Path, true)
+	if err != nil {
+		return err
+	}
 	flags := os.O_CREATE | os.O_WRONLY
 	if truncate {
-		flags |= os.O_TRUNC
+		flags |= os.O_EXCL
 	} else {
 		flags |= os.O_APPEND
 	}
@@ -223,6 +244,10 @@ func (writer *Writer) open(truncate bool) error {
 	if err != nil {
 		return errors.Join(err, opened.Close())
 	}
+	after, err := regularPathInfo(writer.options.Path, false)
+	if err != nil || !sameFile(info, after) || before != nil && !sameFile(before, info) {
+		return errors.Join(ErrUnsafePath, err, opened.Close())
+	}
 	if err := opened.Chmod(writer.options.Mode); err != nil {
 		return errors.Join(err, opened.Close())
 	}
@@ -230,6 +255,42 @@ func (writer *Writer) open(truncate bool) error {
 	writer.size = info.Size()
 
 	return nil
+}
+
+func (writer *Writer) validateRotationPaths() error {
+	active, err := regularPathInfo(writer.options.Path, false)
+	if err != nil {
+		return err
+	}
+	opened, err := writer.file.Stat()
+	if err != nil {
+		return err
+	}
+	if !sameFile(active, opened) {
+		return ErrUnsafePath
+	}
+	for offset := range writer.options.Backups {
+		if _, err := regularPathInfo(backupName(writer.options.Path, offset+1), true); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func regularPathInfo(path string, allowMissing bool) (os.FileInfo, error) {
+	info, err := lstatFile(path)
+	if err != nil {
+		if allowMissing && errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, ErrUnsafePath
+	}
+
+	return info, nil
 }
 
 func backupName(path string, index int) string {

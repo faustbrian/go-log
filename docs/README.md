@@ -1,10 +1,13 @@
 # Documentation
 
+These documents describe the pending v2 source tree. The published package API
+and installable release remain v1 until a v2 tag is published.
+
 ## Getting started
 
-- [Install and quick start](../README.md#install)
+- [Install and quick start](../README.md#install-released-v1)
 - [Adoption](adoption.md)
-- [Package API](https://pkg.go.dev/github.com/faustbrian/go-log)
+- [Published v1 package API](https://pkg.go.dev/github.com/faustbrian/go-log)
 
 ## Concepts and design
 

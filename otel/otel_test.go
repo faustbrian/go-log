@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/capture"
-	logotel "github.com/faustbrian/go-log/otel"
+	"github.com/faustbrian/go-log/v2/handler/capture"
+	logotel "github.com/faustbrian/go-log/v2/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 

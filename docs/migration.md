@@ -1,5 +1,44 @@
 # Migration guide
 
+## From v1 to v2
+
+After a v2 tag is published, change module and package imports from
+`github.com/faustbrian/go-log` to `github.com/faustbrian/go-log/v2`. Until
+then, consumers must remain on v1; the pending module cannot be resolved as a
+released dependency. Version 2 makes redaction secure by default:
+root constructors and redaction omit caller attributes and group identifiers,
+without evaluating discarded `LogValuer` values. Record messages are replaced
+unless `PreserveTrustedMessage` explicitly opts a
+fixed, application-controlled message into preservation. The opt-in rejects
+messages above 1,024 bytes. Version 2 also rejects cumulative bound and record
+structure above the documented attribute and nesting limits.
+
+Use `TrustedNew`, `TrustedJSON`, or `TrustedText` for an explicitly classified
+application-data boundary that needs the former root encoding behavior. These
+variants keep the same structural and trusted-message limits. For selective
+attribute rules, set `redact.Options.PreserveTrustedAttributes: true`; otherwise
+attributes are omitted regardless of Rules. This opt-in trusts names, group
+identifiers, and unmatched values, not just a rule's matched fields.
+
+Async overflow defaults to `DropNewest`, rather than v1's implicit `Block`.
+Choose `Block` explicitly when admission may wait, and configure a positive
+`AdmissionTimeout` for both `Block` and `SyncFallback`. This duration bounds
+waiting for submission ownership, queue capacity, or the synchronous fallback
+slot before acceptance. Expiry returns `async.ErrAdmissionTimeout` and counts
+as `Rejected`, not an accepted delivery loss. Call-site context cancellation
+still does not cancel accepted slog records. Accepted fallback execution and
+downstream callbacks require their own cooperative, bounded I/O policy.
+
+Deterministic sampling at a rate strictly between zero and one drops returned
+keys above `sample.MaxKeyBytes` (1,024 bytes). Shorter keys keep their existing
+hash decisions; rates zero and one still skip key evaluation. Applications own
+key callback execution and allocation. OpenTelemetry correlation's added two
+or three attributes consume the inclusive 1,024-attribute record budget.
+
+The owned `go-authorization`, `go-correlation`, `go-http-middleware`,
+`go-idempotency`, `go-service`, and `go-webhook` consumers remain on v1. Their
+module requirements and imports must migrate only after v2 is published.
+
 ## From `log/slog`
 
 Keep existing `*slog.Logger` parameters and call sites. Replace only startup
@@ -17,6 +56,18 @@ if err != nil {
 }
 logger := slog.New(safe)
 ```
+
+Redaction now omits record and bound attributes and groups and replaces record
+messages by default. When the application has
+already migrated every message at this boundary to a fixed event name, set
+`PreserveTrustedMessage: true`. The opt-in rejects messages above 1,024 bytes;
+do not use it for formatted or user-controlled messages.
+
+Set `PreserveTrustedAttributes` only after classifying all attribute names and
+unmatched values. Custom options must retain the incoming privacy owner;
+supplied handlers may already contain previously bound data that an outer
+wrapper cannot erase. Root `WithAttrs` rejects excessive structure before downstream
+derivation and gives each invocation an independent group copy.
 
 Do not wrap the logger in an application-wide interface merely for this
 migration. For tests, inject `slog.New(capture.New())`.
