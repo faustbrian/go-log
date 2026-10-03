@@ -5,7 +5,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-100%25_required-blue)](CONTRIBUTING.md#verification)
 [![Mutation](https://img.shields.io/badge/mutation-100%25_required-blue)](CONTRIBUTING.md#verification)
 [![Documentation](https://img.shields.io/badge/docs-checked_in_CI-blue)](docs/)
-[![Go Reference](https://pkg.go.dev/badge/github.com/faustbrian/go-log.svg)](https://pkg.go.dev/github.com/faustbrian/go-log)
+[![Go Reference](https://pkg.go.dev/badge/github.com/faustbrian/go-log/v2.svg)](https://pkg.go.dev/github.com/faustbrian/go-log/v2)
 [![Release](https://img.shields.io/github/v/release/faustbrian/go-log?sort=semver)](https://github.com/faustbrian/go-log/releases)
 [![Go](https://img.shields.io/badge/go-1.27.0-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -19,9 +19,8 @@ The package does not define a proprietary logger interface, replace the
 standard JSON or text encoders, initialize OpenTelemetry, or ship direct vendor
 drivers.
 
-The latest published stable module is v1.0.0. This source tree prepares the
-next v2 module and requires Go 1.27.0 or newer; v2 is not installable until a
-v2 tag is published.
+The latest published stable module is v2.0.0 and requires Go 1.27.0 or newer.
+See the [migration guide](docs/migration.md#from-v1-to-v2) when upgrading from v1.
 
 Shared construction, ownership, lifecycle, and composition expectations are in
 the versioned [Golib ecosystem index](https://github.com/faustbrian/go-library-tools/blob/v1.4.0/docs/ecosystem/README.md)
@@ -32,13 +31,13 @@ and [observability family guidance](https://github.com/faustbrian/go-library-too
 - Go 1.27.0 or newer.
 - OpenTelemetry API v1.41 when importing the optional `otel` bridge.
 
-## Install released v1
+## Install released v2
 
 ```sh
-go get github.com/faustbrian/go-log@v1
+go get github.com/faustbrian/go-log/v2@v2
 ```
 
-The secure defaults documented below belong to the pending v2 release.
+The secure defaults documented below are available in v2.0.0.
 
 `New`, `JSON`, and `Text` omit caller attributes and group identifiers and
 replace free-form messages without evaluating discarded values. Time and level
@@ -47,7 +46,7 @@ classified, bounded application data; trusted messages are limited to 1,024
 bytes. Custom options, handlers with previously bound attributes, output
 callbacks, and I/O remain application-owned collaborators.
 
-## Next v2 quick start
+## V2 quick start
 
 ```go
 package main
