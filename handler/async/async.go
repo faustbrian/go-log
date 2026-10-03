@@ -507,14 +507,10 @@ func (runtime *runtime) markComplete(sequence uint64) {
 		}
 		merged := completionInterval{first: sequence, last: sequence}
 		after := first
-		for after < len(runtime.completed) {
+		for ; after < len(runtime.completed) && merged.last >= runtime.completed[after].first-1; after++ {
 			interval := runtime.completed[after]
-			if merged.last < interval.first-1 {
-				break
-			}
 			merged.first = min(merged.first, interval.first)
 			merged.last = max(merged.last, interval.last)
-			after++
 		}
 		if after == first {
 			runtime.completed = append(runtime.completed, completionInterval{})

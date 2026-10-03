@@ -9,6 +9,15 @@ import (
 )
 
 func TestCompletionOwnerFallbackTimeoutPreservesAcceptedReservations(t *testing.T) {
+	testCompletionOwnerRejectedFallback(t, false)
+}
+
+func TestCompletionOwnerClosingPreservesAcceptedReservations(t *testing.T) {
+	testCompletionOwnerRejectedFallback(t, true)
+}
+
+func testCompletionOwnerRejectedFallback(t *testing.T, closing bool) {
+	t.Helper()
 	rt := admissionEdgeRuntime()
 	rt.nextSeq = 2
 	rt.queue <- delivery{sequence: 1, record: completionRecord("retained")}
@@ -18,12 +27,19 @@ func TestCompletionOwnerFallbackTimeoutPreservesAcceptedReservations(t *testing.
 	rt.stats.enqueued.Store(1)
 	rt.stats.synchronousFallback.Store(1)
 	rt.lockSubmission()
-	deadline := make(chan time.Time)
-	close(deadline)
+	var deadline chan time.Time
+	want := ErrAdmissionTimeout
+	if closing {
+		close(rt.closing)
+		want = ErrClosed
+	} else {
+		deadline = make(chan time.Time)
+		close(deadline)
+	}
 	sink := newCompletionSink(false)
 	err := rt.enqueueSyncFallback(context.Background(), sink, completionRecord("rejected"), deadline)
-	if !errors.Is(err, ErrAdmissionTimeout) {
-		t.Fatalf("fallback admission = %v, want ErrAdmissionTimeout", err)
+	if !errors.Is(err, want) {
+		t.Fatalf("fallback admission = %v, want %v", err, want)
 	}
 	if rt.nextSeq != 2 || len(rt.submitMu) != 0 || len(rt.queue) != 1 || len(rt.fallbackSlot) != 1 || rt.fallbacks != 1 {
 		t.Fatalf("timeout changed accepted reservation/ownership: sequence=%d submission=%d queue=%d slot=%d fallbacks=%d", rt.nextSeq, len(rt.submitMu), len(rt.queue), len(rt.fallbackSlot), rt.fallbacks)
@@ -98,7 +114,7 @@ func TestCompletionOwnerCoalescesAdjacencyBridgesAndOnlyCompletedPrefixes(t *tes
 					t.Fatal("completion left the next progress channel closed")
 				default:
 				}
-				if err := rt.wait(context.Background(), step.watermark); err != nil {
+				if err := rt.wait(ctx, step.watermark); err != nil {
 					t.Fatalf("completed prefix wait: %v", err)
 				}
 				if err := rt.wait(ctx, step.watermark+1); !errors.Is(err, context.Canceled) {
