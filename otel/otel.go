@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/faustbrian/go-log/v2/internal/slogrecord"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -30,6 +31,8 @@ type Options struct {
 type Handler struct {
 	next    slog.Handler
 	options Options
+	usage   slogrecord.Usage
+	err     error
 }
 
 // New constructs a correlation decorator without initializing OpenTelemetry.
@@ -52,14 +55,24 @@ func New(next slog.Handler, options Options) (*Handler, error) {
 
 // Enabled delegates level decisions to the downstream handler.
 func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
-	return handler.next.Enabled(ctx, level)
+	return handler.err == nil && handler.next.Enabled(ctx, level)
 }
 
 // Handle adds correlation for a valid span context and delegates downstream.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
+	if handler.err != nil {
+		return handler.err
+	}
+	if _, _, err := handler.usage.Start(record.NumAttrs()); err != nil {
+		return err
+	}
 	spanContext := trace.SpanContextFromContext(ctx)
 	if !spanContext.IsValid() {
-		return handler.next.Handle(ctx, record)
+		owned, err := slogrecord.CloneRawWithUsage(record, handler.usage)
+		if err != nil {
+			return err
+		}
+		return handler.next.Handle(ctx, owned)
 	}
 	correlated := slog.NewRecord(record.Time, record.Level, record.Message, record.PC)
 	correlated.AddAttrs(
@@ -74,15 +87,39 @@ func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 		return true
 	})
 
-	return handler.next.Handle(ctx, correlated)
+	owned, err := slogrecord.CloneRawWithUsage(correlated, handler.usage)
+	if err != nil {
+		return err
+	}
+	return handler.next.Handle(ctx, owned)
 }
 
 // WithAttrs returns an independently derived correlation handler.
 func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &Handler{next: handler.next.WithAttrs(attrs), options: handler.options}
+	if handler.err != nil {
+		return &Handler{next: handler.next, options: handler.options, usage: handler.usage, err: handler.err}
+	}
+	if len(attrs) == 0 {
+		return handler
+	}
+	owned, usage, err := slogrecord.CloneRawAttrsWithUsage(attrs, handler.usage)
+	if err != nil {
+		return &Handler{next: handler.next, options: handler.options, usage: handler.usage, err: err}
+	}
+	return &Handler{next: handler.next.WithAttrs(owned), options: handler.options, usage: usage}
 }
 
 // WithGroup returns an independently derived correlation handler.
 func (handler *Handler) WithGroup(name string) slog.Handler {
-	return &Handler{next: handler.next.WithGroup(name), options: handler.options}
+	if name == "" {
+		return handler
+	}
+	if handler.err != nil {
+		return &Handler{next: handler.next, options: handler.options, usage: handler.usage, err: handler.err}
+	}
+	usage, err := handler.usage.WithGroup(name)
+	if err != nil {
+		return &Handler{next: handler.next, options: handler.options, usage: handler.usage, err: err}
+	}
+	return &Handler{next: handler.next.WithGroup(name), options: handler.options, usage: usage}
 }

@@ -5,14 +5,26 @@
   "modules": [
     {
       "directory": ".",
-      "module_path": "github.com/faustbrian/go-log",
+      "module_path": "github.com/faustbrian/go-log/v2",
       "go_version": "1.27.0",
       "packages": [
         {
           "module_directory": ".",
+          "directory": "internal/slogrecord",
+          "name": "slogrecord",
+          "import_path": "github.com/faustbrian/go-log/v2/internal/slogrecord",
+          "kind": "internal",
+          "production": true,
+          "executable": true,
+          "coverage_required": true,
+          "build_required": true,
+          "build_tags": []
+        },
+        {
+          "module_directory": ".",
           "directory": ".",
           "name": "log",
-          "import_path": "github.com/faustbrian/go-log",
+          "import_path": "github.com/faustbrian/go-log/v2",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -24,7 +36,7 @@
           "module_directory": ".",
           "directory": "handler/async",
           "name": "async",
-          "import_path": "github.com/faustbrian/go-log/handler/async",
+          "import_path": "github.com/faustbrian/go-log/v2/handler/async",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -36,7 +48,7 @@
           "module_directory": ".",
           "directory": "handler/capture",
           "name": "capture",
-          "import_path": "github.com/faustbrian/go-log/handler/capture",
+          "import_path": "github.com/faustbrian/go-log/v2/handler/capture",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -48,7 +60,7 @@
           "module_directory": ".",
           "directory": "handler/redact",
           "name": "redact",
-          "import_path": "github.com/faustbrian/go-log/handler/redact",
+          "import_path": "github.com/faustbrian/go-log/v2/handler/redact",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -60,7 +72,7 @@
           "module_directory": ".",
           "directory": "handler/rotate",
           "name": "rotate",
-          "import_path": "github.com/faustbrian/go-log/handler/rotate",
+          "import_path": "github.com/faustbrian/go-log/v2/handler/rotate",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -72,7 +84,7 @@
           "module_directory": ".",
           "directory": "handler/sample",
           "name": "sample",
-          "import_path": "github.com/faustbrian/go-log/handler/sample",
+          "import_path": "github.com/faustbrian/go-log/v2/handler/sample",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -84,7 +96,7 @@
           "module_directory": ".",
           "directory": "handler/stack",
           "name": "stack",
-          "import_path": "github.com/faustbrian/go-log/handler/stack",
+          "import_path": "github.com/faustbrian/go-log/v2/handler/stack",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -96,7 +108,7 @@
           "module_directory": ".",
           "directory": "otel",
           "name": "otel",
-          "import_path": "github.com/faustbrian/go-log/otel",
+          "import_path": "github.com/faustbrian/go-log/v2/otel",
           "kind": "public",
           "production": true,
           "executable": true,
@@ -113,7 +125,7 @@
       "family_label": "Observability",
       "family_description": "Structured logging extensions and OpenTelemetry runtime lifecycle.",
       "family_order": 6,
-      "version": "1.0.0",
+      "version": "2.0.0",
       "tag_prefix": "v",
       "owned_dependencies": [],
       "reverse_owned_dependencies": [
@@ -150,17 +162,17 @@
         ],
         "public_package_identifier": "log",
         "primary_entry_packages": [
-          "github.com/faustbrian/go-log"
+          "github.com/faustbrian/go-log/v2"
         ],
         "package_selection": {
-          "github.com/faustbrian/go-log": "Use for standard slog logger construction and focused composable handlers without adopting a proprietary logging facade.",
-          "github.com/faustbrian/go-log/handler/async": "Use for bounded asynchronous delivery with explicit overflow, flush, and shutdown semantics.",
-          "github.com/faustbrian/go-log/handler/capture": "Use in tests for concurrency-safe record capture and semantic assertions.",
-          "github.com/faustbrian/go-log/handler/redact": "Use for structural key and path redaction before values reach downstream handlers.",
-          "github.com/faustbrian/go-log/handler/rotate": "Use for permission-enforced local file rotation when platform log streams are unavailable.",
-          "github.com/faustbrian/go-log/handler/sample": "Use for explicit every-N or deterministic key-based sampling with observable counters.",
-          "github.com/faustbrian/go-log/handler/stack": "Use for synchronous fan-out with inclusive per-handler level routing.",
-          "github.com/faustbrian/go-log/otel": "Use to add OpenTelemetry trace and span correlation from a standard context without initializing a provider."
+          "github.com/faustbrian/go-log/v2": "Use for standard slog logger construction and focused composable handlers without adopting a proprietary logging facade.",
+          "github.com/faustbrian/go-log/v2/handler/async": "Use for bounded asynchronous delivery with explicit overflow, flush, and shutdown semantics.",
+          "github.com/faustbrian/go-log/v2/handler/capture": "Use in tests for concurrency-safe record capture and semantic assertions.",
+          "github.com/faustbrian/go-log/v2/handler/redact": "Use for structural key and path redaction before values reach downstream handlers.",
+          "github.com/faustbrian/go-log/v2/handler/rotate": "Use for permission-enforced local file rotation when platform log streams are unavailable.",
+          "github.com/faustbrian/go-log/v2/handler/sample": "Use for explicit every-N or deterministic key-based sampling with observable counters.",
+          "github.com/faustbrian/go-log/v2/handler/stack": "Use for synchronous fan-out with inclusive per-handler level routing.",
+          "github.com/faustbrian/go-log/v2/otel": "Use to add OpenTelemetry trace and span correlation from a standard context without initializing a provider."
         },
         "lifecycle_status": "active",
         "maturity": "stable",
@@ -185,15 +197,15 @@
         },
         "optional_owned_dependencies": [],
         "adapters": [
-          "github.com/faustbrian/go-log/otel"
+          "github.com/faustbrian/go-log/v2/otel"
         ],
         "companions": [
-          "github.com/faustbrian/go-log/handler/async",
-          "github.com/faustbrian/go-log/handler/capture",
-          "github.com/faustbrian/go-log/handler/redact",
-          "github.com/faustbrian/go-log/handler/rotate",
-          "github.com/faustbrian/go-log/handler/sample",
-          "github.com/faustbrian/go-log/handler/stack"
+          "github.com/faustbrian/go-log/v2/handler/async",
+          "github.com/faustbrian/go-log/v2/handler/capture",
+          "github.com/faustbrian/go-log/v2/handler/redact",
+          "github.com/faustbrian/go-log/v2/handler/rotate",
+          "github.com/faustbrian/go-log/v2/handler/sample",
+          "github.com/faustbrian/go-log/v2/handler/stack"
         ],
         "supported_go": {
           "minimum": "1.27.0",
@@ -223,9 +235,9 @@
         },
         "known_good_compatibility_sets": [],
         "delivery": {
-          "implementation": "not-started",
-          "hardening": "not-started",
-          "release": "not-started"
+          "implementation": "in-progress",
+          "hardening": "in-progress",
+          "release": "blocked"
         }
       },
       "gates": {

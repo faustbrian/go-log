@@ -1,4 +1,4 @@
-module github.com/faustbrian/go-log
+module github.com/faustbrian/go-log/v2
 
 go 1.27.0
 

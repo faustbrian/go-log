@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/async"
-	"github.com/faustbrian/go-log/handler/redact"
-	"github.com/faustbrian/go-log/handler/sample"
-	"github.com/faustbrian/go-log/handler/stack"
+	"github.com/faustbrian/go-log/v2/handler/async"
+	"github.com/faustbrian/go-log/v2/handler/redact"
+	"github.com/faustbrian/go-log/v2/handler/sample"
+	"github.com/faustbrian/go-log/v2/handler/stack"
 )
 
 func TestLatencyBudgets(t *testing.T) {
 	record := benchmarkRecord()
 	jsonHandler := slog.NewJSONHandler(io.Discard, nil)
-	redacted, err := redact.New(jsonHandler, &redact.Options{
+	redacted, err := redact.New(jsonHandler, &redact.Options{PreserveTrustedAttributes: true,
 		Rules: []redact.Rule{redact.Keys("token")},
 	})
 	if err != nil {
@@ -41,7 +41,7 @@ func TestLatencyBudgets(t *testing.T) {
 	}
 	asyncHandler, err := async.New(jsonHandler, async.Options{
 		Capacity: 1024,
-		Overflow: async.Block,
+		Overflow: async.Block, AdmissionTimeout: time.Second,
 	})
 	if err != nil {
 		t.Fatalf("async.New() error = %v", err)

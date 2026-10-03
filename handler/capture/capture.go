@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/faustbrian/go-log/v2/internal/slogrecord"
 )
 
 // Option configures a capture Handler.
@@ -39,6 +41,8 @@ type Handler struct {
 	minLevel slog.Leveler
 	attrs    []slog.Attr
 	groups   []string
+	usage    slogrecord.Usage
+	err      error
 }
 
 // New constructs an empty capture handler.
@@ -53,14 +57,22 @@ func New(options ...Option) *Handler {
 
 // Enabled reports whether level meets the configured minimum.
 func (handler *Handler) Enabled(_ context.Context, level slog.Level) bool {
-	return handler.minLevel == nil || level >= handler.minLevel.Level()
+	return handler.err == nil && (handler.minLevel == nil || level >= handler.minLevel.Level())
 }
 
-// Handle clones and retains record. It never returns a delivery error.
+// Handle clones and retains record. It returns log.ErrRecordLimit when the
+// record exceeds the package structural limits.
 func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
+	if handler.err != nil {
+		return handler.err
+	}
+	owned, err := slogrecord.CloneResolvedWithUsage(record, handler.usage)
+	if err != nil {
+		return err
+	}
 	attrs := cloneAttrs(handler.attrs)
-	recordAttrs := make([]slog.Attr, 0, record.NumAttrs())
-	record.Attrs(func(attr slog.Attr) bool {
+	recordAttrs := make([]slog.Attr, 0, owned.NumAttrs())
+	owned.Attrs(func(attr slog.Attr) bool {
 		recordAttrs = append(recordAttrs, attr)
 		return true
 	})
@@ -78,7 +90,19 @@ func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 // WithAttrs returns a derived handler whose records include attrs.
 func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	derived := handler.clone()
-	derived.attrs = append(derived.attrs, wrapGroups(cloneAttrs(attrs), handler.groups)...)
+	if handler.err != nil {
+		return derived
+	}
+	if len(attrs) == 0 {
+		return handler
+	}
+	owned, usage, err := slogrecord.CloneResolvedAttrsWithUsage(attrs, handler.usage)
+	if err != nil {
+		derived.err = err
+		return derived
+	}
+	derived.attrs = append(derived.attrs, wrapGroups(cloneAttrs(owned), handler.groups)...)
+	derived.usage = usage
 
 	return derived
 }
@@ -90,7 +114,16 @@ func (handler *Handler) WithGroup(name string) slog.Handler {
 		return handler
 	}
 	derived := handler.clone()
+	if handler.err != nil {
+		return derived
+	}
+	usage, err := handler.usage.WithGroup(name)
+	if err != nil {
+		derived.err = err
+		return derived
+	}
 	derived.groups = append(derived.groups, name)
+	derived.usage = usage
 
 	return derived
 }
@@ -139,6 +172,8 @@ func (handler *Handler) clone() *Handler {
 		minLevel: handler.minLevel,
 		attrs:    cloneAttrs(handler.attrs),
 		groups:   append([]string(nil), handler.groups...),
+		usage:    handler.usage,
+		err:      handler.err,
 	}
 }
 

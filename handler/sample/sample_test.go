@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faustbrian/go-log/handler/capture"
-	"github.com/faustbrian/go-log/handler/sample"
+	"github.com/faustbrian/go-log/v2/handler/capture"
+	"github.com/faustbrian/go-log/v2/handler/sample"
 )
 
 func TestNewRejectsInvalidDependencies(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/faustbrian/go-log/handler/redact"
+	"github.com/faustbrian/go-log/v2/handler/redact"
 )
 
 func FuzzNestedAttributes(fuzz *testing.F) {
@@ -23,7 +23,7 @@ func FuzzNestedAttributes(fuzz *testing.F) {
 		depth := int(requestedDepth % 24)
 		var output bytes.Buffer
 		next := slog.NewJSONHandler(&output, nil)
-		handler, err := redact.New(next, &redact.Options{
+		handler, err := redact.New(next, &redact.Options{PreserveTrustedAttributes: true,
 			Rules: []redact.Rule{redact.Any(
 				redact.Keys("secret", "token", "password"),
 				redact.Paths("request.credentials.password"),
@@ -71,7 +71,7 @@ func FuzzRedactionRules(fuzz *testing.F) {
 
 	fuzz.Fuzz(func(t *testing.T, key, path, value string) {
 		var output bytes.Buffer
-		handler, err := redact.New(slog.NewTextHandler(&output, nil), &redact.Options{
+		handler, err := redact.New(slog.NewTextHandler(&output, nil), &redact.Options{PreserveTrustedAttributes: true,
 			Rules: []redact.Rule{redact.Any(redact.Keys(key), redact.Paths(path), nil)},
 		})
 		if err != nil {
