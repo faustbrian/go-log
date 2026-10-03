@@ -88,6 +88,21 @@ func TestOrdinaryEmptyBatchesPreserveInclusiveOwnerLimits(t *testing.T) {
 	}
 }
 
+func TestOrdinaryEmptyBatchRejectsInvalidRetainedAttributeCount(t *testing.T) {
+	usage := Usage{Attributes: MaxRecordAttributes + 1}
+	original := usage
+	attributes, depth, err := usage.Start(0)
+	if !errors.Is(err, ErrRecordLimit) || attributes != 0 || depth != 0 || usage != original {
+		t.Fatalf("invalid retained owner Start = %d, %d, %v; owner=%#v", attributes, depth, err, usage)
+	}
+	for _, clone := range []func([]slog.Attr, Usage) ([]slog.Attr, Usage, error){CloneRawAttrsWithUsage, CloneResolvedAttrsWithUsage} {
+		attrs, retained, err := clone(nil, usage)
+		if !errors.Is(err, ErrRecordLimit) || attrs != nil || retained != (Usage{}) || usage != original {
+			t.Fatalf("invalid retained owner clone = %v, %#v, %v; owner=%#v", attrs, retained, err, usage)
+		}
+	}
+}
+
 func TestOrdinaryLastScalarAdmissionAndFullOwnerRejection(t *testing.T) {
 	usage := Usage{Attributes: MaxRecordAttributes - 1}
 	for _, clone := range []func([]slog.Attr, Usage) ([]slog.Attr, Usage, error){CloneRawAttrsWithUsage, CloneResolvedAttrsWithUsage} {
