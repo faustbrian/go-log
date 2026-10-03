@@ -2,10 +2,9 @@
 
 ## From v1 to v2
 
-After a v2 tag is published, change module and package imports from
-`github.com/faustbrian/go-log` to `github.com/faustbrian/go-log/v2`. Until
-then, consumers must remain on v1; the pending module cannot be resolved as a
-released dependency. Version 2 makes redaction secure by default:
+To install the published v2 release, change module and package imports from
+`github.com/faustbrian/go-log` to `github.com/faustbrian/go-log/v2` and select
+`v2.0.0` or a later compatible release. Version 2 makes redaction secure by default:
 root constructors and redaction omit caller attributes and group identifiers,
 without evaluating discarded `LogValuer` values. Record messages are replaced
 unless `PreserveTrustedMessage` explicitly opts a
@@ -36,8 +35,9 @@ key callback execution and allocation. OpenTelemetry correlation's added two
 or three attributes consume the inclusive 1,024-attribute record budget.
 
 The owned `go-authorization`, `go-correlation`, `go-http-middleware`,
-`go-idempotency`, `go-service`, and `go-webhook` consumers remain on v1. Their
-module requirements and imports must migrate only after v2 is published.
+`go-idempotency`, `go-service`, and `go-webhook` consumer modules also require
+the v2 module path when adopting this release. Their adoption is verified
+separately; producer publication does not establish consumer migration.
 
 ## From `log/slog`
 

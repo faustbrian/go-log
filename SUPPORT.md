@@ -9,6 +9,6 @@ Use [GitHub Discussions](https://github.com/faustbrian/go-log/discussions) for
 adoption questions and design exploration. Use the private process in
 [`SECURITY.md`](SECURITY.md) for vulnerabilities.
 
-Support covers the latest stable v1 release according to
+Support covers the latest stable v2 release according to
 [`COMPATIBILITY.md`](COMPATIBILITY.md). Older releases and the `main` branch
 are unsupported; upgrade before opening a request.

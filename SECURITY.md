@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-The latest stable v1 release receives security fixes. Older releases and the
+The latest stable v2 release receives security fixes. Older releases and the
 `main` branch are unsupported; upgrade before reporting unless the issue is a
 regression under active development.
 
 | Version | Supported |
 | --- | --- |
-| Latest stable v1 release | Yes |
+| Latest stable v2 release | Yes |
 | Older releases | No |
 | `main` | No |
 
@@ -31,8 +31,8 @@ currently promised.
 
 ## Threat model
 
-Threat model version: 2.0 (reviewed 2026-10-01), scoped to the pending v2.0.0
-source contract. This does not claim a published v2 release.
+Threat model version: 2.0 (reviewed 2026-10-01), scoped to the v2.0.0
+source contract. Version v2.0.0 was published on 2026-10-03.
 
 The package assumes attributes, messages, contexts, filesystem state, and
 downstream handlers may be slow or malformed. It protects against:
