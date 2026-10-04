@@ -1,7 +1,8 @@
 # Adoption guide
 
-This guide describes adoption of the pending v2 release. Keep consumers on
-published v1 until a v2 tag exists. The v2 migration does not change
+This guide describes the published v2 module. Install the released
+`github.com/faustbrian/go-log/v2` package; existing v1 consumers must follow
+the [v2 migration guide](migration.md). The migration does not change
 application-facing logger types.
 The boundary remains `*slog.Logger`, so packages that already use `log/slog`
 need no adapter.
