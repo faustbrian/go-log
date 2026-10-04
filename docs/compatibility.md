@@ -43,8 +43,13 @@ The current minimum is Go 1.27.0.
 ## OpenTelemetry versions
 
 The optional `otel` package depends only on the stable OpenTelemetry trace API.
-The current baseline is `go.opentelemetry.io/otel/trace` v1.41.0, the newest
-release compatible with Go 1.24 when the dependency was selected.
+This source revision selects `go.opentelemetry.io/otel/trace` v1.46.0;
+the published v2.0.0 release selects v1.41.0. Both versions fit the module's
+Go 1.27.0 minimum. The bridge's consumed trace API remains compatible.
+
+Applications also using OpenTelemetry's trace-context propagator can now
+receive contexts carrying the random trace flag, including version-zero
+flags `03`. The bridge preserves these flags in its `trace_flags` attribute.
 
 Minor OpenTelemetry updates may be accepted after CI verifies the supported Go
 matrix. The bridge does not depend on an SDK, exporter, or the `telemetry`
