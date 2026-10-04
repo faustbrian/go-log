@@ -31,7 +31,7 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Link the module to the versioned Golib ecosystem and observability-family
   guidance, and align the minimum Go claim with `go.mod`.
 
-## [2.0.0] - 2026-10-01 (prepared; publication pending)
+## [2.0.0] - 2026-10-03
 
 ### Changed
 
@@ -130,5 +130,6 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Isolate every redaction rule from nested group storage so a custom rule cannot
   mutate structure and bypass later secret rules.
 
-[Unreleased]: https://github.com/faustbrian/go-log/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/faustbrian/go-log/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/faustbrian/go-log/releases/tag/v2.0.0
 [1.0.0]: https://github.com/faustbrian/go-log/releases/tag/v1.0.0
