@@ -1,13 +1,13 @@
 # Documentation
 
-These documents describe the pending v2 source tree. The published package API
-and installable release remain v1 until a v2 tag is published.
+These documents describe the published `github.com/faustbrian/go-log/v2`
+module. Existing v1 consumers should follow the [migration guide](migration.md).
 
 ## Getting started
 
-- [Install and quick start](../README.md#install-released-v1)
+- [Install and quick start](../README.md#install-released-v2)
 - [Adoption](adoption.md)
-- [Published v1 package API](https://pkg.go.dev/github.com/faustbrian/go-log)
+- [Published v2 package API](https://pkg.go.dev/github.com/faustbrian/go-log/v2)
 
 ## Concepts and design
 

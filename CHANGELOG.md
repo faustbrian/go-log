@@ -8,10 +8,6 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Update the optional OpenTelemetry bridge's trace API and root dependency
-  from v1.41.0 to v1.46.0 without changing the bridge API or Go minimum.
-  Applications using upstream trace-context propagation may receive the
-  random flag in correlated `trace_flags`, including version-zero flags `03`.
 - Replace copied repository verification tooling with the released
   `go-library-tools` v1.0.5 contract while retaining logging-specific API,
   fuzzing, benchmark, and OpenTelemetry boundary verification.
@@ -34,6 +30,22 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   standalone, human-oriented documentation structure.
 - Link the module to the versioned Golib ecosystem and observability-family
   guidance, and align the minimum Go claim with `go.mod`.
+
+## [2.0.1] - 2026-10-04
+
+### Changed
+
+- Update the optional OpenTelemetry bridge's trace API and root dependency
+  from v1.41.0 to v1.46.0 without changing the bridge API or Go minimum.
+  Applications using upstream trace-context propagation may receive the
+  random flag in correlated `trace_flags`, including version-zero flags `03`.
+
+- Update the shared CI workflow while preserving the checksum-pinned CLI.
+
+### Documentation
+
+- Correct adoption guidance and API links to the published v2 module rather
+  than asking consumers to wait for its already-published first release.
 
 ## [2.0.0] - 2026-10-03
 
@@ -135,5 +147,6 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mutate structure and bypass later secret rules.
 
 [Unreleased]: https://github.com/faustbrian/go-log/compare/v2.0.0...HEAD
+[2.0.1]: https://github.com/faustbrian/go-log/releases/tag/v2.0.1
 [2.0.0]: https://github.com/faustbrian/go-log/releases/tag/v2.0.0
 [1.0.0]: https://github.com/faustbrian/go-log/releases/tag/v1.0.0
