@@ -29,7 +29,7 @@ and [observability family guidance](https://github.com/faustbrian/go-library-too
 ## Requirements
 
 - Go 1.27.0 or newer.
-- OpenTelemetry API v1.46.0 when importing the optional `otel` bridge
+- OpenTelemetry API v1.47.0 when importing the optional `otel` bridge
   from this source revision; v2.0.0 selects v1.41.0.
 
 ## Install released v2
