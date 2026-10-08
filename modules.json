@@ -125,7 +125,7 @@
       "family_label": "Observability",
       "family_description": "Structured logging extensions and OpenTelemetry runtime lifecycle.",
       "family_order": 6,
-      "version": "2.0.1",
+      "version": "2.0.2",
       "tag_prefix": "v",
       "owned_dependencies": [],
       "reverse_owned_dependencies": [
