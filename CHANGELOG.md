@@ -8,6 +8,9 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Update the optional OpenTelemetry bridge's trace API and root dependency
+  from v1.46.0 to v1.47.0 while retaining its trace-context correlation,
+  provider-lifecycle boundary, public API, and Go 1.27.0 minimum.
 - Replace copied repository verification tooling with the released
   `go-library-tools` v1.0.5 contract while retaining logging-specific API,
   fuzzing, benchmark, and OpenTelemetry boundary verification.

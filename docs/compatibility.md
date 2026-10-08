@@ -43,7 +43,7 @@ The current minimum is Go 1.27.0.
 ## OpenTelemetry versions
 
 The optional `otel` package depends only on the stable OpenTelemetry trace API.
-This source revision selects `go.opentelemetry.io/otel/trace` v1.46.0;
+This source revision selects `go.opentelemetry.io/otel/trace` v1.47.0;
 the published v2.0.0 release selects v1.41.0. Both versions fit the module's
 Go 1.27.0 minimum. The bridge's consumed trace API remains compatible.
 
