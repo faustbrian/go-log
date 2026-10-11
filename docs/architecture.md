@@ -95,7 +95,13 @@ the lifecycle guarantee.
 | Capture | Retained records | RW mutex | Parallel readers and writers |
 | Rotate | File, size, rotation count | One mutex | Concurrent whole-write test |
 
-All stateful packages run under `go test -race ./...` in CI.
+Ordinary CI runs deterministic tests plus a bounded async lifecycle race:
+`TestCanceledFlushDoesNotWaitForBlockedSubmission` and
+`TestShutdownHonorsCallerCancellationAcrossHeldFallback` run once with a
+two-minute timeout. The table describes available risk coverage, not a broad
+race campaign on every pull request. Explicit `make check-full` retains the
+original module-wide race and other full qualification gates. The existing
+OTel no-SDK/no-telemetry dependency boundary remains required in ordinary CI.
 
 ## Hostile values
 

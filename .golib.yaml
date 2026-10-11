@@ -1,6 +1,6 @@
 schema_version: 1
-tool_version: v1.4.0
-tool_checksums_sha256: ba1b71d41dc9b58d5bfb411bc89ae2d45b6f3f778152714bfd1afeab0bef2f33
+tool_version: v2.1.1
+tool_checksums_sha256: 4e0a38f76cbff547541f3164a0e59e958cf2f62d7b5cea19d7a4d1c51fe5e977
 manifest:
   modules: modules.json
   packages: packages.json
@@ -18,6 +18,15 @@ api:
       mode: apidiff
       path: api/log-v2.txt
 operations:
+  - module: .
+    gate: local-test
+    steps:
+      - type: go-test
+        packages: ["./handler/async"]
+        run: '^Test(CanceledFlushDoesNotWaitForBlockedSubmission|ShutdownHonorsCallerCancellationAcrossHeldFallback)$'
+        race: true
+        count: 1
+        timeout: 2m
   - module: .
     gate: test
     steps:

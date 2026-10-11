@@ -3,7 +3,7 @@
 [![CI](https://github.com/faustbrian/go-log/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/faustbrian/go-log/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/badge/CodeQL-required-blue)](https://github.com/faustbrian/go-log/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-100%25_required-blue)](CONTRIBUTING.md#verification)
-[![Mutation](https://img.shields.io/badge/mutation-100%25_required-blue)](CONTRIBUTING.md#verification)
+[![Mutation](https://img.shields.io/badge/mutation-local_and_scheduled-blue)](CONTRIBUTING.md#verification)
 [![Documentation](https://img.shields.io/badge/docs-checked_in_CI-blue)](docs/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/faustbrian/go-log/v2.svg)](https://pkg.go.dev/github.com/faustbrian/go-log/v2)
 [![Release](https://img.shields.io/github/v/release/faustbrian/go-log?sort=semver)](https://github.com/faustbrian/go-log/releases)
@@ -183,6 +183,12 @@ See [adoption](docs/adoption.md), [recipes](docs/recipes.md),
 complete guidance.
 
 ## Documentation
+
+For development, use Go 1.27.2 and `GOWORK=off go test ./...`. Bounded
+`make check`/`make ci` retain the OTel dependency boundary and selected async
+lifecycle race; base-free checks run fuzz seeds/corpus, not active campaigns.
+See [contributing](CONTRIBUTING.md#verification) for focused fuzzing and explicit
+`make check-full`/release qualification.
 
 Use the [documentation index](docs/README.md) for adoption, architecture,
 operations, recipes, compatibility, and migration guidance. For project help,

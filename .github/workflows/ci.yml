@@ -20,21 +20,75 @@ permissions:
 
 jobs:
   ci:
-    uses: faustbrian/go-library-tools/.github/workflows/library-ci.yml@f490f4c88c29fff9fa63aeb36dfa7f1b3de4566b
+    uses: faustbrian/go-library-tools/.github/workflows/library-ci.yml@eff8b2127c361ee2f422123824a1d337cc277ac4 # v2.1.1
     with:
-      tooling_sha: f490f4c88c29fff9fa63aeb36dfa7f1b3de4566b
-      source_bootstrap: true
+      tooling_sha: eff8b2127c361ee2f422123824a1d337cc277ac4
+      source_bootstrap: false
       public_dependencies: true
       release_dry_run: ${{ inputs.release_dry_run || false }}
+
+  otel-boundary:
+    name: OTel dependency boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      GOENV: 'off'
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+      GOMAXPROCS: '2'
+      GOFLAGS: -p=1
+      GOPROXY: https://proxy.golang.org
+      GOSUMDB: sum.golang.org
+      GOPRIVATE: ''
+      GONOPROXY: ''
+      GONOSUMDB: ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - name: Initialize task-owned dependency caches
+        run: |
+          set -euo pipefail
+          task="$(mktemp -d "${RUNNER_TEMP}/log-otel-boundary.XXXXXX")"
+          echo "OTEL_BOUNDARY_TASK_ROOT=${task}" >>"${GITHUB_ENV}"
+          mkdir -p "${task}/cache" "${task}/mod" "${task}/tmp"
+          printf 'GOCACHE=%s\nGOMODCACHE=%s\nGOTMPDIR=%s\nTMPDIR=%s\n' \
+            "${task}/cache" "${task}/mod" "${task}/tmp" "${task}/tmp" >>"${GITHUB_ENV}"
+      - name: Reject SDK and telemetry dependencies in the bridge
+        run: |
+          set -euo pipefail
+          cleanup() {
+            status=$?
+            chmod -R u+w "${OTEL_BOUNDARY_TASK_ROOT}" || status=1
+            find "${OTEL_BOUNDARY_TASK_ROOT}" -depth -delete || status=1
+            exit "${status}"
+          }
+          trap cleanup EXIT
+          make -f verification/package.mk otel-boundary
+      - name: Remove task-owned dependency resources
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${OTEL_BOUNDARY_TASK_ROOT:-}" && -d "${OTEL_BOUNDARY_TASK_ROOT:-}" ]]; then
+            chmod -R u+w "${OTEL_BOUNDARY_TASK_ROOT}"
+            find "${OTEL_BOUNDARY_TASK_ROOT}" -depth -delete
+          fi
 
   required:
     name: Required
     if: always()
-    needs: ci
+    needs: [ci, otel-boundary]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require shared workflow
+      - name: Require shared workflow and OTel boundary
         env:
           CI_RESULT: ${{ needs.ci.result }}
-        run: test "${CI_RESULT}" = success
+          OTEL_BOUNDARY_RESULT: ${{ needs.otel-boundary.result }}
+        run: test "${CI_RESULT}" = success && test "${OTEL_BOUNDARY_RESULT}" = success
