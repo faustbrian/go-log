@@ -727,6 +727,8 @@ func (info fakeInfo) ModTime() time.Time { return time.Time{} }
 func (info fakeInfo) IsDir() bool        { return false }
 func (info fakeInfo) Sys() any           { return nil }
 
+// replaceOpenFile swaps all identity/open hooks for sequential failure fixtures.
+// Restore must run before other cases; these globals are not parallel-safe.
 func replaceOpenFile(replacement func(string, int, os.FileMode) (file, error)) func() {
 	oldOpen := openFile
 	oldLstat := lstatFile

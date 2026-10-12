@@ -13,6 +13,9 @@ import (
 	"github.com/faustbrian/go-log/v2/handler/stack"
 )
 
+// BenchmarkPipelines reuses one fixed grouped info record and prebuilt handlers;
+// b.Loop excludes construction. Sinks discard output. Every(10) deliberately
+// delivers fewer records, and level routing/encoding work differs across cases.
 func BenchmarkPipelines(benchmark *testing.B) {
 	record := benchmarkRecord()
 	jsonHandler := slog.NewJSONHandler(io.Discard, nil)
@@ -56,6 +59,9 @@ func BenchmarkPipelines(benchmark *testing.B) {
 	}
 }
 
+// BenchmarkAsync measures resolved producer admission and concurrent worker
+// JSON encoding to Discard using capacity 1024 and Block. Construction and final
+// Shutdown/drain are excluded; this is not end-to-end delivery latency.
 func BenchmarkAsync(benchmark *testing.B) {
 	handler, err := async.New(slog.NewJSONHandler(io.Discard, nil), async.Options{
 		Capacity: 1024,

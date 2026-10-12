@@ -12,6 +12,9 @@ import (
 	"github.com/faustbrian/go-log/v2/handler/redact"
 )
 
+// FuzzNestedAttributes varies byte values/UTF-8/group names and up to 23 nested
+// groups under selective trusted attributes. It asserts matched fixture values
+// are omitted without evaluating them; opaque input size is not capped here.
 func FuzzNestedAttributes(fuzz *testing.F) {
 	fuzz.Add([]byte("safe"), uint8(0), uint8(0))
 	fuzz.Add([]byte{0xff, 0xfe, 0xfd}, uint8(8), uint8(1))
@@ -64,6 +67,9 @@ func FuzzNestedAttributes(fuzz *testing.F) {
 	})
 }
 
+// FuzzRedactionRules varies arbitrary key/path/value strings and exercises
+// nil rules plus recursive/panicking LogValuers under selective mode. The invariant
+// is safe completion, not semantic secret classification of arbitrary input.
 func FuzzRedactionRules(fuzz *testing.F) {
 	fuzz.Add("token", "request.token", "value")
 	fuzz.Add("PASSWORD", "account.password", "\xff\x00")

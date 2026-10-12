@@ -1,5 +1,7 @@
 // Package sample provides deterministic and rate-based sampling decorators for
-// standard log/slog handlers.
+// standard log/slog handlers. New composes a caller-owned sink with Every or
+// Deterministic; no clock, worker, provider or sink lifecycle is owned. Sampling
+// intentionally loses records and provides no privacy or durable-delivery policy.
 package sample
 
 import (
@@ -28,7 +30,9 @@ var (
 	ErrNilKey = errors.New("sample: nil key function")
 )
 
-// Sampler decides whether a record should be delivered.
+// Sampler decides whether a record should be delivered. It is borrowed and may
+// run concurrently; bound its work and do not mutate shared opaque objects.
+// Group structure is isolated, values are raw, and callback panics propagate.
 type Sampler func(context.Context, slog.Record) bool
 
 // KeyFunc returns the stable identity used for deterministic sampling. For
@@ -36,9 +40,12 @@ type Sampler func(context.Context, slog.Record) bool
 // Callers own the callback's execution time and returned string allocation.
 type KeyFunc func(context.Context, slog.Record) string
 
-// Stats is a point-in-time sampling counter snapshot.
+// Stats contains independently sampled lifetime counters, not one atomic state.
+// Counters use ordinary uint64 arithmetic without saturation.
 type Stats struct {
-	Kept    uint64
+	// Kept counts affirmative decisions, including downstream returned errors.
+	Kept uint64
+	// Dropped counts negative decisions after structural admission.
 	Dropped uint64
 }
 
@@ -47,7 +54,11 @@ type counters struct {
 	dropped atomic.Uint64
 }
 
-// Handler decorates a standard handler with a sampling policy.
+// Handler decorates a standard handler with a sampling policy. New is required;
+// its zero value is unusable. Derived handlers share sampler state and counters,
+// and concurrent calls require concurrent-safe sampler and downstream handlers.
+// Over-limit WithAttrs/WithGroup returns a disabled derived handler whose
+// Handle keeps returning ErrRecordLimit; empty derivation does not clear it.
 type Handler struct {
 	next    slog.Handler
 	sampler Sampler
@@ -56,7 +67,8 @@ type Handler struct {
 	err     error
 }
 
-// New constructs a sampling handler.
+// New retains next/sampler and rejects nil collaborators; typed-nil handlers
+// are not detected. No callback is executed during construction.
 func New(next slog.Handler, sampler Sampler) (*Handler, error) {
 	if next == nil {
 		return nil, ErrNilHandler
@@ -69,7 +81,9 @@ func New(next slog.Handler, sampler Sampler) (*Handler, error) {
 }
 
 // Every constructs a concurrency-safe sampler that keeps the first record and
-// then one record from each consecutive group of n records.
+// then one record from each consecutive group of n records. Atomic increment
+// order, not goroutine launch order, defines the sequence. Derived users of the
+// same Sampler share that sequence; the uint64 counter eventually wraps.
 func Every(n uint64) (Sampler, error) {
 	if n == 0 {
 		return nil, ErrInvalidEvery
@@ -82,7 +96,12 @@ func Every(n uint64) (Sampler, error) {
 }
 
 // Deterministic constructs a stable hash sampler. Records with the same key
-// always receive the same decision for a given rate.
+// always receive the same decision for a given rate. NaN/out-of-range rates
+// and nil keys return errors; zero/one rates never evaluate key. Fractional
+// rates drop overlong returned keys before hashing, not before their allocation.
+// The fixed mixed FNV mapping and strict float threshold are compatibility
+// behavior protected by TestDeterministicUsesStrictStableHashThreshold, not
+// randomness or an exact retained fraction for any finite/adversarial corpus.
 func Deterministic(rate float64, key KeyFunc) (Sampler, error) {
 	if math.IsNaN(rate) || rate < 0 || rate > 1 {
 		return nil, ErrInvalidRate
@@ -114,7 +133,10 @@ func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 // Handle samples an independent record clone before optionally delivering the
-// original record downstream.
+// original record downstream. The clone owns group slices, not opaque values;
+// it omits bound attrs/groups from the sampler's record. A drop returns nil and
+// a kept call returns the downstream error unchanged. Structure failures do
+// not increment either counter; no callback timeout or panic recovery is added.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 	if handler.err != nil {
 		return handler.err
@@ -172,7 +194,8 @@ func (handler *Handler) WithGroup(name string) slog.Handler {
 	}
 }
 
-// Stats returns an atomic point-in-time counter snapshot.
+// Stats atomically loads each counter separately. Concurrent calls need not
+// produce a globally consistent Kept/Dropped pair.
 func (handler *Handler) Stats() Stats {
 	return Stats{
 		Kept:    handler.stats.kept.Load(),

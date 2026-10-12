@@ -1,4 +1,9 @@
-// Package slogrecord owns bounded cloning of slog records for package handlers.
+// Package slogrecord owns cumulative structural admission and group-tree copies
+// for package handlers. CloneRaw preserves LogValuer identity; CloneResolved
+// uses slog.Value.Resolve before recursively copying groups. Neither deep-copies
+// opaque maps/pointers nor limits strings or collaborator work. Callers must
+// discard partial records on error and own value lifetime/concurrent mutation.
+// No worker, sink, provider or public alternative record model is introduced.
 package slogrecord
 
 import (
@@ -16,7 +21,9 @@ const MaxRecordDepth = 32
 var ErrRecordLimit = errors.New("log: record attribute limit exceeded")
 
 // CloneResolved returns a structurally independent resolved record under fixed
-// limits.
+// limits. On a nested failure the returned record may contain an admitted
+// prefix; callers must discard it when err is non-nil. Resolved opaque values
+// still retain object identity, and slog owns panic/recursion handling in Resolve.
 func CloneResolved(record slog.Record) (slog.Record, error) {
 	return clone(record, Usage{}, true)
 }
@@ -29,12 +36,17 @@ func CloneRaw(record slog.Record) (slog.Record, error) {
 
 // Usage tracks structure retained by a chain of handler derivations.
 type Usage struct {
+	// Attributes is the retained attribute-node count, including charged groups.
 	Attributes int
-	Groups     int
+	// Groups is the retained derivation depth charged when a batch has attrs.
+	Groups int
 }
 
 // Start returns the initial attribute count and depth for one derived or
-// record batch after checking its top-level shape.
+// record batch after checking its top-level shape. Empty batches do not charge
+// retained groups or visit a node; their returned depth may exceed the visit cap.
+// Usage is copied by value; reject invalid retained state before allocating.
+// count must come from a non-negative actual slice/record attribute count.
 func (usage Usage) Start(count int) (int, int, error) {
 	if err := preflight(count, usage); err != nil {
 		return 0, 0, err
@@ -173,6 +185,9 @@ func cloneAttr(attr slog.Attr, depth int, budget *budget, resolve bool) (slog.At
 		return slog.Attr{Key: attr.Key, Value: value}, nil
 	}
 	children := value.Group()
+	// Admit all immediate children before allocating/calling a child's Resolve.
+	// Checking incrementally would evaluate an early child in an impossible tree
+	// (TestOrdinaryGroupChildrenAdmittedBeforeAnyChildWork).
 	if len(children) > MaxRecordAttributes-budget.attributes {
 		return slog.Attr{}, ErrRecordLimit
 	}

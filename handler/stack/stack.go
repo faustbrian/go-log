@@ -1,5 +1,7 @@
 // Package stack provides synchronous fan-out and per-sink level routing for
-// standard log/slog handlers.
+// standard log/slog handlers. New copies routes, not sink or Leveler state;
+// caller-owned sinks execute sequentially per Handle call with no timeout,
+// redaction, worker or close propagation. Concurrent calls may overlap.
 package stack
 
 import (
@@ -23,22 +25,31 @@ var (
 // A nil MinLevel or MaxLevel leaves that side unbounded. The downstream
 // handler's Enabled method remains authoritative within the configured range.
 type Route struct {
-	Handler  slog.Handler
+	// Handler is the borrowed sink; nil is rejected, typed nil is caller-invalid.
+	Handler slog.Handler
+	// MinLevel is the inclusive dynamic minimum; nil leaves it unbounded.
 	MinLevel slog.Leveler
+	// MaxLevel is the inclusive dynamic maximum; nil leaves it unbounded.
 	MaxLevel slog.Leveler
 }
 
 // Handler synchronously fans each record out to every matching route.
 //
 // Handler is immutable after construction. Derived handlers returned by
-// WithAttrs and WithGroup do not modify their parent.
+// WithAttrs and WithGroup do not modify their parent. Concurrent use requires
+// every borrowed sink and Leveler to support it. Zero/empty stacks are disabled
+// no-op sinks; no downstream resource lifecycle or panic recovery is owned.
+// Over-limit WithAttrs/WithGroup returns a disabled derived handler whose
+// Handle keeps returning ErrRecordLimit; empty derivation does not clear it.
 type Handler struct {
 	routes []Route
 	usage  slogrecord.Usage
 	err    error
 }
 
-// New validates routes and constructs a fan-out handler.
+// New copies routes and validates present handlers and current inclusive level
+// ranges. It returns wrapped route-index errors; dynamic Levelers are retained
+// and may subsequently change the range. No routes produces a disabled stack.
 func New(routes ...Route) (*Handler, error) {
 	cloned := append([]Route(nil), routes...)
 	for index, route := range cloned {
@@ -70,7 +81,10 @@ func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 // Handle delivers record to every matching enabled route and joins all sink
-// errors. A failure from one route never prevents delivery to later routes.
+// errors in route order. A returned sink error does not prevent later routes;
+// a panic does. Each selected sink gets independent raw record/group storage,
+// not a deep copy of opaque objects. Structural rejection returns before that
+// sink, and a direct Handle call rechecks per-route Enabled/range decisions.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 	if handler.err != nil {
 		return handler.err

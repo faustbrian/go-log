@@ -22,6 +22,7 @@ module. Existing v1 consumers should follow the [migration guide](migration.md).
 
 ## Reference and maintenance
 
+- [Source documentation audit](source-documentation.md)
 - [Compatibility](compatibility.md)
 - [FAQ](faq.md)
 - [Migration](migration.md)

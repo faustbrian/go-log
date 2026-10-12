@@ -70,10 +70,12 @@ the caller's wait but does not cancel the worker or discard records.
 3. cancels the shared delivery context if a caller's deadline expires.
 
 If the first caller times out, later calls can continue waiting. A downstream
-handler that ignores context and blocks forever can prevent completion, but no
-`Shutdown` call waits beyond its own context and the package does not create a
-detached goroutine to outlive the caller. `OnError` runs on the worker and must
-also return promptly; a blocking callback prevents further delivery and drain.
+handler that ignores context and blocks forever can prevent completion. Caller
+context bounds drain waiting, not preemption of callbacks or the initial shared
+queue-close coordination. The existing worker may remain blocked until its sink
+returns; shutdown creates no additional detached drain goroutine. `OnError` runs
+on the worker and must also return promptly; a blocking callback prevents
+further delivery and drain.
 
 Stop request servers, consumers, and periodic jobs before shutdown so they do
 not receive `async.ErrClosed`. Reserve part of the platform termination grace

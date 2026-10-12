@@ -1,5 +1,8 @@
 // Package async provides bounded asynchronous delivery for standard log/slog
-// handlers.
+// handlers. New starts one worker; its caller owns Shutdown on that shared
+// lifecycle before closing sinks. Capacity bounds waiting records, not bytes,
+// opaque values or callback execution. Delivery is in-memory, not durable;
+// synchronous fallback can overtake queued work. No transport/provider is owned.
 package async
 
 import (
@@ -43,7 +46,9 @@ const (
 	Block
 	// DropOldest evicts the oldest queued record and accepts the current one.
 	DropOldest
-	// SyncFallback delivers the current record synchronously.
+	// SyncFallback uses the queue if available, otherwise reserves one synchronous
+	// fallback slot up to AdmissionTimeout. One fallback can overlap the worker
+	// and overtake queued records; callback execution is not timed out.
 	SyncFallback
 )
 
@@ -58,19 +63,30 @@ type Options struct {
 	AdmissionTimeout time.Duration
 	// OnError receives asynchronous downstream delivery failures. The worker
 	// recovers callback panics so reporting cannot stop delivery. The callback
-	// runs on the worker and must return promptly.
+	// runs on the worker before completion notification and must return promptly.
+	// Nil suppresses reporting; synchronous fallback errors return to Handle
+	// without OnError. Errors are not redacted. Do not recursively use this queue
+	// or wait for its Flush/Shutdown from the callback.
 	OnError func(error)
 }
 
-// Stats is an atomic point-in-time delivery counter snapshot.
+// Stats contains independently sampled lifetime counters, not one atomic state.
+// Counters use ordinary uint64 arithmetic; none supplies saturation semantics.
 type Stats struct {
-	Enqueued            uint64
-	Delivered           uint64
-	Failed              uint64
-	DroppedNewest       uint64
-	DroppedOldest       uint64
+	// Enqueued counts accepted queue deliveries, including later evictions.
+	Enqueued uint64
+	// Delivered counts successful worker and synchronous fallback Handle calls.
+	Delivered uint64
+	// Failed counts returned downstream errors from either delivery path.
+	Failed uint64
+	// DroppedNewest counts offered records refused by full-queue DropNewest.
+	DroppedNewest uint64
+	// DroppedOldest counts accepted queued records evicted before delivery.
+	DroppedOldest uint64
+	// SynchronousFallback counts accepted fallback calls, successful or failed.
 	SynchronousFallback uint64
-	Rejected            uint64
+	// Rejected counts closed/timed-out admission, not structure errors or drops.
+	Rejected uint64
 }
 
 // Lost returns records accepted or offered for delivery that did not reach
@@ -102,6 +118,11 @@ type completionInterval struct {
 	last  uint64
 }
 
+// runtime owns queue closure, delivery cancellation and all sequence state.
+// submitMu serializes nextSeq/admission; completeMu owns intervals/progress;
+// fallbackMu owns fallback count/notification. Worker alone closes workerDone.
+// Submission ownership is released before fallback callbacks. A refused
+// reservation must roll back nextSeq or Flush would wait on a permanent hole.
 type runtime struct {
 	queue            chan delivery
 	enqueue          enqueueFunc
@@ -131,7 +152,10 @@ type enqueueFunc func(*runtime, context.Context, slog.Handler, slog.Record, <-ch
 
 // Handler delivers records through a bounded worker queue. Derived handlers
 // share queue lifecycle and statistics while retaining their own downstream
-// slog derivation.
+// slog derivation. Construct with New: nil/zero Handler is not usable. All
+// public methods support concurrent calls when downstream derivation/handling
+// and borrowed values do. SyncFallback requires a sink safe for the worker plus
+// one fallback concurrently. Downstream panics are not contained.
 type Handler struct {
 	next    slog.Handler
 	runtime *runtime
@@ -139,7 +163,10 @@ type Handler struct {
 	err     error
 }
 
-// New constructs and starts a bounded asynchronous handler.
+// New validates options before starting one worker and returns nil on error.
+// Capacity must be positive; there is no upper cap on caller-chosen capacity.
+// The next interface is borrowed (typed nil is not detected); no sink is closed.
+// Group/value resolution occurs on producer calls, not inside admission timeouts.
 func New(next slog.Handler, options Options) (*Handler, error) {
 	if next == nil {
 		return nil, ErrNilHandler
@@ -191,7 +218,11 @@ func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
 
 // Handle freezes record values, preserves context values without call-site
 // cancellation, and applies the configured overflow policy. Shutdown may
-// cancel the delivery context.
+// cancel the delivery context. Resolved groups are copied, but opaque maps,
+// pointers and other Any values are not deep-copied or erased. Do not mutate
+// those objects while retained. A queued nil error means accepted, not delivered;
+// fallback returns its sink error. Use non-nil ctx; resolution/callback panics
+// follow slog/collaborator behavior, not a general panic-recovery guarantee.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 	if handler.err != nil {
 		return handler.err
@@ -204,6 +235,8 @@ func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 	runtime := handler.runtime
 	var deadline <-chan time.Time
 	if runtime.overflow == Block || runtime.overflow == SyncFallback {
+		// Resolve before this admission timer: it bounds queue/submission/slot
+		// waiting only, never borrowed LogValuer or accepted sink execution.
 		timer := time.NewTimer(runtime.admissionTimeout)
 		defer timer.Stop()
 		deadline = timer.C
@@ -230,7 +263,10 @@ func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 	return runtime.enqueue(runtime, deliveryCtx, handler.next, frozen, deadline)
 }
 
-// WithAttrs returns a derived handler that shares queue lifecycle and stats.
+// WithAttrs resolves and copies bound group structure before downstream
+// derivation, sharing queue lifecycle and stats. Opaque resolved values remain
+// shared. Over-limit derivation returns a disabled handler with a sticky
+// ErrRecordLimit; empty attrs preserve identity without clearing a prior error.
 func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	if handler.err != nil {
 		return &Handler{next: handler.next, runtime: handler.runtime, usage: handler.usage, err: handler.err}
@@ -262,7 +298,11 @@ func (handler *Handler) WithGroup(name string) slog.Handler {
 }
 
 // Flush waits until every record accepted before the call is delivered,
-// failed, or explicitly dropped. It does not stop new submissions.
+// failed, or explicitly dropped. It does not stop new submissions. The snapshot
+// is taken after acquiring submission ownership, so concurrent acceptances before
+// that snapshot are included. It reports waiting errors, not sink errors or loss,
+// and caller cancellation neither cancels delivery nor discards accepted work.
+// Do not call from the worker's sink/OnError: its own completion is still pending.
 func (handler *Handler) Flush(ctx context.Context) error {
 	runtime := handler.runtime
 	select {
@@ -277,7 +317,12 @@ func (handler *Handler) Flush(ctx context.Context) error {
 }
 
 // Shutdown stops accepting records, drains accepted work, and independently
-// honors ctx. An expired context cancels cooperative downstream deliveries.
+// honors ctx during drain waiting. An expired context cancels cooperative
+// downstream deliveries but cannot preempt a sink or OnError callback. Calls
+// share terminal shutdown; later callers may continue waiting, and completed
+// shutdown succeeds even for a canceled caller. Sinks are never closed. Stop
+// producers and bound collaborators before shutdown; do not invoke it from
+// accepted delivery callbacks that must themselves return to finish drain.
 func (handler *Handler) Shutdown(ctx context.Context) error {
 	runtime := handler.runtime
 	runtime.shutdown.Do(func() {
@@ -294,7 +339,8 @@ func (handler *Handler) Shutdown(ctx context.Context) error {
 	return runtime.waitFallbacks(ctx)
 }
 
-// Stats returns an atomic point-in-time delivery counter snapshot.
+// Stats loads each delivery counter atomically but not all counters together.
+// Concurrent delivery can make cross-field totals temporarily inconsistent.
 func (handler *Handler) Stats() Stats {
 	stats := &handler.runtime.stats
 

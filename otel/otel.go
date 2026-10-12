@@ -1,6 +1,8 @@
 // Package otel correlates slog records with the standard OpenTelemetry span
 // context produced by telemetry. It does not initialize providers, mutate
-// OpenTelemetry globals, export signals, or own SDK lifecycle.
+// OpenTelemetry globals, export signals, or own SDK lifecycle. New decorates a
+// caller-owned sink using the OpenTelemetry trace API v1.47.0 dependency; no
+// Collector transport, cgo or telemetry-runtime dependency is introduced.
 package otel
 
 import (
@@ -27,7 +29,11 @@ type Options struct {
 	IncludeTraceFlags bool
 }
 
-// Handler decorates a standard slog handler with trace/span correlation.
+// Handler decorates a standard slog handler with trace/span correlation. Use
+// New; the zero value is unusable. Concurrent use depends on borrowed downstream
+// handlers/values. No redaction, callback timeout or close propagation is added.
+// Over-limit WithAttrs/WithGroup returns a disabled derived handler whose
+// Handle keeps returning ErrRecordLimit; empty derivation does not clear it.
 type Handler struct {
 	next    slog.Handler
 	options Options
@@ -35,7 +41,9 @@ type Handler struct {
 	err     error
 }
 
-// New constructs a correlation decorator without initializing OpenTelemetry.
+// New copies options and retains next without initializing OpenTelemetry.
+// Nil next returns ErrNilHandler; typed-nil collaborators remain caller-invalid.
+// Empty keys take defaults, but other spelling/duplicate names are not normalized.
 func New(next slog.Handler, options Options) (*Handler, error) {
 	if next == nil {
 		return nil, ErrNilHandler
@@ -58,7 +66,12 @@ func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
 	return handler.err == nil && handler.next.Enabled(ctx, level)
 }
 
-// Handle adds correlation for a valid span context and delegates downstream.
+// Handle reads a non-nil context and prepends IDs for any valid span context,
+// local/remote and sampled/unsampled. Flags are the complete trace flags byte,
+// not only its sampled bit. Existing same-name attrs are retained (not replaced).
+// Correlation nodes count against retained-plus-record limits; structural
+// rejection emits nothing downstream. Raw groups are copied without resolving
+// LogValuer values; opaque objects remain shared. Sink errors propagate.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 	if handler.err != nil {
 		return handler.err

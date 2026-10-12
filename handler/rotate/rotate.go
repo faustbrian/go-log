@@ -1,5 +1,9 @@
 // Package rotate provides an optional bounded local-file writer for use with
-// the standard log/slog JSON and text handlers.
+// the standard log/slog JSON and text handlers. Start with New and own Close;
+// Write/Sync/Close serialize filesystem work with no context cancellation.
+// Checked leaf identities are not a directory sandbox: callers must control
+// parent directories, concurrent path mutation and backup count. No worker,
+// network transport, redaction or crash-atomic rotation protocol is owned.
 package rotate
 
 import (
@@ -17,7 +21,7 @@ var (
 	ErrInvalidMaxBytes = errors.New("rotate: max bytes must be greater than zero")
 	// ErrInvalidBackups is returned when the backup count is negative.
 	ErrInvalidBackups = errors.New("rotate: backups must not be negative")
-	// ErrInvalidMode is returned when Mode contains non-permission bits.
+	// ErrInvalidMode is returned when Mode contains file-type bits.
 	ErrInvalidMode = errors.New("rotate: invalid file mode")
 	// ErrClosed is returned by Write and Sync after Close.
 	ErrClosed = errors.New("rotate: writer closed")
@@ -28,21 +32,27 @@ var (
 // Options configures local file rotation.
 type Options struct {
 	// Path is the active log file. Symbolic links and non-regular active or
-	// numbered backup paths are rejected.
+	// numbered backup paths are rejected. Parent directories must already exist
+	// and remain trusted; errors may disclose this caller-configured path.
 	Path string
 	// MaxBytes is the active file size that triggers rotation before the next
-	// atomic write. A single larger write is never split.
+	// serialized write. A single larger write is never split by rotation, though
+	// underlying I/O can return a partial count/error. This is not a byte quota.
 	MaxBytes int64
 	// Backups is the number of numbered old files to retain. Zero truncates the
-	// active file on rotation.
+	// active path to a newly created empty file on rotation.
 	Backups int
-	// Mode is enforced on every active file. Zero defaults to 0600.
+	// Mode permissions are enforced on every active file. Zero defaults to 0600;
+	// file-type bits are rejected and other non-permission flags discarded.
 	Mode os.FileMode
 }
 
 // Stats is a point-in-time writer snapshot.
 type Stats struct {
-	Bytes     int64
+	// Bytes is tracked active-file size, including successful partial writes.
+	// It is not cumulative bytes or a fresh stat after external file mutation.
+	Bytes int64
+	// Rotations counts completed new-active-file transitions, not failed attempts.
 	Rotations uint64
 }
 
@@ -68,7 +78,9 @@ var (
 
 // Writer serializes writes and rotates files before a write would exceed the
 // configured limit. Writer implements io.WriteCloser and is safe for
-// concurrent use.
+// concurrent use. Use New; zero Writer has no valid configured path. The mutex
+// covers filesystem calls, so slow I/O also delays concurrent Close/Stats.
+// Caller owns final Close and must not share path mutation with another writer.
 type Writer struct {
 	mu        sync.Mutex
 	options   Options
@@ -78,7 +90,10 @@ type Writer struct {
 	closed    bool
 }
 
-// New opens or creates a rotating writer and enforces its configured mode.
+// New validates options, appends an existing regular file or creates one and
+// enforces its mode before publishing a Writer. Nil is returned on failure;
+// filesystem and rejected-file cleanup errors may be joined. No parent directory
+// is created. Backups has no upper cap; caller configuration bounds rotation work.
 func New(options Options) (*Writer, error) {
 	if options.Path == "" {
 		return nil, ErrInvalidPath
@@ -136,7 +151,9 @@ func wouldExceedLimit(size int64, writeBytes int, maximum int64) bool {
 	return size > 0 && writeBytes > 0 && int64(writeBytes) > maximum-size
 }
 
-// Sync commits the active file's contents to stable storage.
+// Sync requests synchronization of the active file through its filesystem.
+// It returns ErrClosed after Close and may retry opening after rotation failure.
+// It does not sync parent directories or make the rename sequence crash-atomic.
 func (writer *Writer) Sync() error {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
@@ -152,7 +169,9 @@ func (writer *Writer) Sync() error {
 	return writer.file.Sync()
 }
 
-// Close syncs and closes the active file. Repeated calls succeed.
+// Close marks the writer terminal, then attempts both file Sync and Close and
+// joins their errors. Repeated calls succeed even after an earlier close error;
+// Write/Sync thereafter return ErrClosed. No underlying operation is preempted.
 func (writer *Writer) Close() error {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
@@ -177,6 +196,10 @@ func (writer *Writer) Stats() Stats {
 	return Stats{Bytes: writer.size, Rotations: writer.rotations}
 }
 
+// Rotation is deliberately a filesystem sequence, not a rollback transaction.
+// Validate identities before removing/renaming; a failure can leave shifted
+// backups. Reopen recovery preserves a usable active path where possible and
+// joins errors, never counts an incomplete transition as a successful rotation.
 func (writer *Writer) rotate() error {
 	if err := writer.validateRotationPaths(); err != nil {
 		return err

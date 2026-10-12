@@ -211,6 +211,9 @@ func flushCompletion(t *testing.T, handler *Handler) {
 	}
 }
 
+// completionSink exposes accepted worker/fallback windows through owned channels.
+// Fixture cleanup releases both windows with Once before drain; delivered order
+// is synchronized, but it is deliberately not a durable or cancel-aware sink.
 type completionSink struct {
 	workerStarted   chan struct{}
 	fallbackStarted chan struct{}

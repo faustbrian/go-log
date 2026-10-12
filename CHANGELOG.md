@@ -19,6 +19,10 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- Clarify structural versus opaque-value ownership, default omission and trusted
+  callbacks, asynchronous admission/drain limits, counter snapshots, rotation
+  failure boundaries and trace-correlation lifecycle in source documentation.
+
 - Clarify that the root module uses `v<version>` tags and reserve
   directory-prefixed tags for independently releasable nested modules.
 - Correct the `v1.0.0` release date to match its signed tag and published

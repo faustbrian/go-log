@@ -26,9 +26,10 @@ Every decorator implements all four `slog.Handler` methods:
 - `WithGroup` preserves standard group order in data-preserving variants.
   Default redaction validates/counts the group without forwarding its name.
 
-Stack clones a record for every sink. Async freezes metadata, the attribute
-slice, nested group slices, and resolved `LogValuer` values before queueing.
-Capture clones retained records and returns independent snapshots.
+Stack clones a record for every sink. Async copies metadata, attribute/group
+slices and resolves `LogValuer` values
+before queueing. Opaque values returned by resolution retain shared object
+identity. Capture snapshots own record/group storage, not arbitrary objects.
 
 ## Ordering and ownership
 

@@ -1,5 +1,14 @@
 // Package log provides small constructors for composing standard log/slog
 // loggers and handlers without introducing a replacement logger interface.
+// Start with New, JSON or Text for default omission; TrustedNew and trusted
+// format constructors preserve application-classified data. Individual handler
+// packages used through slog.New do not inherit the root omission policy.
+//
+// Options, handlers, writers and slog callbacks are borrowed and must satisfy
+// their own concurrent-use and lifetime contracts. Construction owns no worker,
+// close or provider lifecycle; standard slog owns encoding and discards Handle
+// errors at logger call sites. Use direct handler calls or sink health reporting
+// when errors matter. Structural limits do not bound opaque values or I/O time.
 package log
 
 import (
@@ -38,7 +47,10 @@ type Option func(slog.Handler) (slog.Handler, error)
 // New constructs a standard slog.Logger with secure default data omission.
 //
 // New keeps *slog.Logger as the application-facing type. It returns the first
-// option error and never constructs a logger around a nil handler.
+// option error and never constructs a logger around a nil handler. Only nil
+// interfaces are rejected; callers must avoid typed-nil handlers and nil options.
+// Options run synchronously and their panics propagate; failure does not close
+// previously supplied or derived resources.
 // Record messages are replaced and caller attributes and groups are omitted
 // without resolving their values. Supplied handlers may already contain data;
 // applications own prebound handlers, custom options, and downstream I/O.
@@ -78,7 +90,11 @@ func newLogger(handler slog.Handler, privacy *redact.Options, options ...Option)
 	return slog.New(handler), nil
 }
 
-// WithAttrs returns an option that adds attrs to every record.
+// WithAttrs returns an option that binds attrs subject to the logger's privacy
+// policy. It eagerly copies bounded group structure without resolving LogValuer
+// values and supplies a fresh group copy per invocation. Opaque objects remain
+// shared; callers own their lifetime and must not mutate inputs during copying.
+// Excess structure is retained as an error returned when the option is applied.
 func WithAttrs(attrs ...slog.Attr) Option {
 	cloned, err := slogrecord.CloneRawAttrs(attrs)
 
@@ -94,7 +110,9 @@ func WithAttrs(attrs ...slog.Attr) Option {
 	}
 }
 
-// WithGroup returns an option that qualifies subsequent attributes with name.
+// WithGroup returns an option that qualifies subsequent attributes with name
+// in data-preserving handlers. Empty names are no-ops. Structural derivation
+// failure stays on the handler and is reported by Handle, not this Option.
 func WithGroup(name string) Option {
 	return func(handler slog.Handler) (slog.Handler, error) {
 		return handler.WithGroup(name), nil
@@ -102,6 +120,9 @@ func WithGroup(name string) Option {
 }
 
 // JSON constructs a secure-default slog JSON logger using New's privacy policy.
+// Standard slog controls HandlerOptions, encoding and synchronous writer calls;
+// writer must be usable; it and optional callbacks remain caller-owned.
+// ReplaceAttr and source emission can introduce data outside the omission boundary.
 func JSON(writer io.Writer, options *slog.HandlerOptions) *slog.Logger {
 	// The standard constructor always returns a non-nil handler and no options
 	// are applied, so New cannot fail here.
@@ -110,6 +131,8 @@ func JSON(writer io.Writer, options *slog.HandlerOptions) *slog.Logger {
 }
 
 // Text constructs a secure-default slog text logger using New's privacy policy.
+// Writer blocking, lifetime and HandlerOptions callbacks are caller-owned as
+// with JSON; neither constructor installs a timeout or closes the writer.
 func Text(writer io.Writer, options *slog.HandlerOptions) *slog.Logger {
 	logger, _ := New(slog.NewTextHandler(writer, options))
 	return logger

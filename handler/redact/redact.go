@@ -1,5 +1,8 @@
 // Package redact provides structural attribute redaction for standard
-// log/slog handlers.
+// log/slog handlers. New defaults to omission of caller attrs/groups and fixed
+// message replacement; selective matching is an explicit trusted-data opt-in.
+// Compose before sinks that need protection. It cannot sanitize prebound sinks,
+// encoders, opaque objects or data introduced later. No worker/provider is owned.
 package redact
 
 import (
@@ -29,14 +32,18 @@ var (
 // sensitive. Rules receive the raw value so matching can occur before a
 // LogValuer is evaluated. Each callback receives an independent bounded copy
 // of group structure. Opaque non-group values retain caller-owned identity;
-// rules must not mutate those objects and must return promptly.
+// rules must not mutate those objects and must return promptly. Rules may run
+// concurrently during Handle/WithAttrs; panics propagate. Paths join group names
+// with dots without escaping, so dotted keys/names can produce the same path.
 type Rule func(path string, attr slog.Attr) bool
 
 // Options configures structural redaction.
 type Options struct {
 	// Rules are evaluated in order until one matches. Nil rules are ignored.
 	Rules []Rule
-	// Replacement overrides DefaultReplacement when non-nil.
+	// Replacement overrides matched attribute values, not the default message.
+	// New copies this slog.Value only; group/opaque replacement storage remains
+	// caller-owned. Supply trusted immutable data; it is not resolved or sanitized.
 	Replacement *slog.Value
 	// PreserveTrustedMessage preserves fixed application-controlled messages
 	// up to MaxTrustedMessageBytes.
@@ -51,7 +58,9 @@ type Options struct {
 
 // Handler omits attributes/groups and replaces messages by default. Explicit
 // trusted-attribute mode replaces matched values and preserves unmatched data.
-// It is immutable and safe for concurrent use when the downstream handler is.
+// It is immutable and safe for concurrent use when downstream, rules and
+// retained replacement values are. Construct with New; zero Handler is unusable.
+// Structural limits bound tree work, not string/opaque bytes or callback time.
 type Handler struct {
 	next               slog.Handler
 	rules              []Rule
@@ -63,7 +72,10 @@ type Handler struct {
 	err                error
 }
 
-// New constructs a structural redaction decorator.
+// New copies Options flags, rule slice and replacement value, retaining the
+// downstream handler and rule closures. Nil options selects defaults; nil next
+// is rejected, while typed-nil next remains caller-invalid. Construction does
+// not invoke rules or own the sink lifetime.
 func New(next slog.Handler, options *Options) (*Handler, error) {
 	if next == nil {
 		return nil, ErrNilHandler
@@ -141,7 +153,11 @@ func (handler *Handler) Enabled(ctx context.Context, level slog.Level) bool {
 	return handler.err == nil && handler.next.Enabled(ctx, level)
 }
 
-// Handle redacts record attributes and delegates delivery downstream.
+// Handle validates retained plus record structure before delegation. Default
+// mode drops attrs/groups without resolving their values; trusted selective mode
+// replaces a raw rule match before resolving unmatched values. Structural or
+// message failure emits no partial record, but callbacks may already have run.
+// Time/level/PC remain intact; downstream errors are returned unchanged.
 func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 	if handler.err != nil {
 		return handler.err
@@ -182,7 +198,10 @@ func (handler *Handler) Handle(ctx context.Context, record slog.Record) error {
 }
 
 // WithAttrs returns a derived handler that redacts bound attrs using the
-// current structural group path.
+// current structural group path. Default mode counts but omits the attributes;
+// trusted mode evaluates rules/resolves unmatched values synchronously. Failure
+// is sticky on the returned disabled handler, not returned by this slog method.
+// Empty derivations preserve identity and cannot clear an earlier limit error.
 func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	if handler.err != nil {
 		return handler.withError(handler.err)
@@ -289,6 +308,9 @@ func (handler *Handler) transform(
 		}
 	}
 
+	// Matching must precede resolution: a sensitive LogValuer can expose data
+	// or execute caller code even if its eventual scalar would be replaced.
+	// Unmatched trusted values retain slog's Resolve behavior, not secret safety.
 	value := attr.Value.Resolve()
 	if value.Kind() != slog.KindGroup {
 		return slog.Attr{Key: attr.Key, Value: value}, nil

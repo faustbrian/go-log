@@ -1,5 +1,8 @@
 // Package capture provides an in-memory slog handler and lightweight test
-// assertions. It is intended for tests, not as a production log sink.
+// assertions. Start with New and pass it to slog.New. It is intended for tests,
+// not as a production log sink: record count/opaque payload bytes are unbounded,
+// no redaction is automatic, and assertions can render sensitive fixture values.
+// No worker or provider is owned; Reset releases buffer references, not secrets.
 package capture
 
 import (
@@ -35,7 +38,9 @@ type state struct {
 
 // Handler retains cloned records in memory and is safe for concurrent use.
 // Derived handlers share the same capture buffer while keeping independent
-// attribute and group configuration.
+// attribute and group configuration. New is required; zero/nil Handler is not
+// usable. Calls resolve LogValuer values outside the buffer lock. Concurrent
+// use also requires a safe borrowed Leveler and value collaborators.
 type Handler struct {
 	state    *state
 	minLevel slog.Leveler
@@ -45,7 +50,9 @@ type Handler struct {
 	err      error
 }
 
-// New constructs an empty capture handler.
+// New constructs an empty capture handler. Options run synchronously and must
+// be non-nil; their panics propagate. WithLevel retains its Leveler rather than
+// snapshotting its current level, and typed-nil Levelers are caller-invalid.
 func New(options ...Option) *Handler {
 	config := config{}
 	for _, option := range options {
@@ -61,7 +68,9 @@ func (handler *Handler) Enabled(_ context.Context, level slog.Level) bool {
 }
 
 // Handle clones and retains record. It returns log.ErrRecordLimit when the
-// record exceeds the package structural limits.
+// record exceeds the package structural limits. Handle does not recheck the
+// level: direct callers must consult Enabled themselves. Group trees are copied
+// and LogValuer values resolved, but opaque objects retain shared identity.
 func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 	if handler.err != nil {
 		return handler.err
@@ -87,7 +96,10 @@ func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 	return nil
 }
 
-// WithAttrs returns a derived handler whose records include attrs.
+// WithAttrs resolves/copies bound group structure and returns a derived handler
+// sharing the capture buffer. Opaque values remain shared. Excess cumulative
+// structure returns a disabled handler whose Handle error stays sticky through
+// later derivation, including empty attrs/groups.
 func (handler *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	derived := handler.clone()
 	if handler.err != nil {
@@ -136,7 +148,8 @@ func (handler *Handler) Len() int {
 	return len(handler.state.records)
 }
 
-// Records returns an independent snapshot of retained records.
+// Records returns independent record/group storage valid after Reset or later
+// writes. Opaque non-group objects remain shared, not deep-copied or sanitized.
 func (handler *Handler) Records() []slog.Record {
 	handler.state.mu.RLock()
 	defer handler.state.mu.RUnlock()
@@ -148,7 +161,8 @@ func (handler *Handler) Records() []slog.Record {
 	return records
 }
 
-// Last returns an independent copy of the most recently retained record.
+// Last returns independent record/group storage for the last retained record,
+// or a zero record and false when empty. Opaque values remain shared as in Records.
 func (handler *Handler) Last() (slog.Record, bool) {
 	handler.state.mu.RLock()
 	defer handler.state.mu.RUnlock()
@@ -159,7 +173,9 @@ func (handler *Handler) Last() (slog.Record, bool) {
 	return cloneRecord(handler.state.records[len(handler.state.records)-1]), true
 }
 
-// Reset removes every retained record without affecting derived handlers.
+// Reset clears the shared buffer seen by all derived handlers, preserving their
+// configuration and earlier snapshots. It is safe during Handle/Records calls;
+// concurrent admitted work may repopulate it. It neither closes nor erases data.
 func (handler *Handler) Reset() {
 	handler.state.mu.Lock()
 	handler.state.records = nil
@@ -179,7 +195,9 @@ func (handler *Handler) clone() *Handler {
 
 // TestingT is the subset of testing.TB used by capture assertions.
 type TestingT interface {
+	// Helper marks the assertion caller as the diagnostic origin.
 	Helper()
+	// Errorf reports a mismatch; assertion messages may render fixture values.
 	Errorf(format string, args ...any)
 }
 
