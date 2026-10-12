@@ -48,3 +48,12 @@ claimed from this pass. Unchanged race, active fuzz, latency/allocation,
 rotation failure-injection and release campaigns are not selected. The
 coordinator owns remote-main/exact CI and shared-enforcement adoption; this
 document does not replace their native authority. No module release is needed.
+
+## Objective Enforcement
+
+The qualified public Tools v2.4.0 binary and immutable reusable CI source
+provide the strict tracked-source check through `make source-docs-check`,
+the existing local check/CI routes and Required aggregation. Release and
+selected security/assurance routes retain their existing controls. This
+structural status supplements the rendered semantic audit; it does not
+certify prose meaning, generator execution or runtime conformance.

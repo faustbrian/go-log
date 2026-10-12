@@ -1,14 +1,14 @@
 GOLIB ?= golib
 
-.PHONY: check check-full ci cohesion inventory repository-check otel-boundary
+.PHONY: source-docs-check check check-full ci cohesion inventory repository-check otel-boundary
 
-check: otel-boundary
+check: source-docs-check otel-boundary
 	$(GOLIB) check --local --all
 
-check-full:
+check-full: source-docs-check
 	$(GOLIB) check --all
 
-ci: otel-boundary
+ci: source-docs-check otel-boundary
 	$(GOLIB) repository check
 	$(GOLIB) cohesion check
 	$(GOLIB) check --local --all
@@ -21,3 +21,6 @@ inventory repository-check:
 
 otel-boundary:
 	$(MAKE) -f verification/package.mk otel-boundary
+
+source-docs-check:
+	$(GOLIB) source-docs check --json
