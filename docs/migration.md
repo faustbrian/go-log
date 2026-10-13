@@ -1,5 +1,8 @@
 # Migration guide
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Adoption guide](adoption.md)
+
 ## From v1 to v2
 
 To install the published v2 release, change module and package imports from

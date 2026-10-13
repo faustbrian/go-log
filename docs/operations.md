@@ -1,5 +1,8 @@
 # Operations guide
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Adoption guide](adoption.md)
+
 Logging is part of a service's failure surface. Capacity, loss, shutdown, and
 secret policies must be chosen before deployment and observed continuously.
 

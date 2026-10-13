@@ -1,5 +1,8 @@
 # Adoption guide
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Operations guide](operations.md)
+
 This guide describes the published v2 module. Install the released
 `github.com/faustbrian/go-log/v2` package; existing v1 consumers must follow
 the [v2 migration guide](migration.md). The migration does not change

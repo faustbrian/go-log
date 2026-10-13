@@ -1,5 +1,8 @@
 # Architecture
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Operations guide](operations.md)
+
 ## Design boundaries
 
 The standard library owns the logger API, record model, and JSON/text encoding.

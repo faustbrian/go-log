@@ -1,5 +1,8 @@
 # FAQ and troubleshooting
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Operations guide](operations.md)
+
 ## Does this replace `log/slog`?
 
 No. Applications construct and pass `*slog.Logger`. The root package and all

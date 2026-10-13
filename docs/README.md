@@ -1,5 +1,8 @@
 # Documentation
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Documentation map](index.md)
+
 These documents describe the published `github.com/faustbrian/go-log/v2`
 module. Existing v1 consumers should follow the [migration guide](migration.md).
 

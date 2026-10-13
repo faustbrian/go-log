@@ -1,5 +1,8 @@
 # Source documentation audit
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Operations guide](operations.md)
+
 ## Inventory and scope
 
 Baseline `28dec559ca2cc54acf610c27af12e262aaf69491` contains one public v2

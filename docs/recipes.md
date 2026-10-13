@@ -1,5 +1,8 @@
 # Recipes
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Operations guide](operations.md)
+
 All recipes use standard `slog.Handler` composition. Constructors return or
 accept standard handlers. Use root `New` or default redaction for ordinary
 request-controlled data; direct `slog.New(handler)` and selective preservation

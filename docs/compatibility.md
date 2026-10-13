@@ -1,5 +1,8 @@
 # Compatibility policy
 
+[Documentation map](index.md) · [Repository README](../README.md)
+[Next: Adoption guide](adoption.md)
+
 ## Semantic versioning
 
 `log` follows Semantic Versioning for exported Go APIs and documented
