@@ -16,7 +16,7 @@ The package does not define a proprietary logger interface, replace the
 standard JSON or text encoders, initialize OpenTelemetry, or ship direct vendor
 drivers.
 
-The latest published stable module is v2.0.0 and requires Go 1.27.0 or newer.
+The published stable v2 line requires Go 1.27.0 or newer.
 See the [migration guide](docs/migration.md#from-v1-to-v2) when upgrading from v1.
 
 Shared construction, ownership, lifecycle, and composition expectations are in
